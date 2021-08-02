@@ -1,4 +1,4 @@
-struct Domain{FT}
+mutable struct Domain{FT}
     # Something CUDA
     max_streams::IndexT
     streams::Nothing

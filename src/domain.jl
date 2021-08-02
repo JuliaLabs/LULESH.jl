@@ -30,71 +30,288 @@ rowLoc(dom::AbstractDomain) = dom.m_rowLoc
 planeLoc(dom::AbstractDomain) = dom.m_planeLoc
 tp(dom::AbstractDomain) = dom.m_tp
 
-function AllocateNodalPersistent(prob, domNodes)
-	T = prob.devicetype{prob.floattype}
-	x = T(undef, domNodes)   # coordinates
-	y = T(undef, domNodes)
-	z = T(undef, domNodes)
+function AllocateNodalPersistent!(domain, domNodes)
+	resize!(domain.x, domNodes)   # coordinates
+	resize!(domain.y, domNodes)
+	resize!(domain.z, domNodes)
 
-	xd = T(undef, domNodes)  # velocities
-	yd = T(undef, domNodes)
-	zd = T(undef, domNodes)
+	resize!(domain.xd, domNodes)  # velocities
+	resize!(domain.yd, domNodes)
+	resize!(domain.zd, domNodes)
 
-	xdd = T(undef, domNodes) # accelerations
-	ydd = T(undef, domNodes) # accelerations
-	zdd = T(undef, domNodes) # accelerations
+	resize!(domain.xdd, domNodes) # accelerations
+	resize!(domain.ydd, domNodes) # accelerations
+	resize!(domain.zdd, domNodes) # accelerations
 
-	fx = T(undef, domNodes)   # forces
-	fy = T(undef, domNodes)
-	fz = T(undef, domNodes)
+	resize!(domain.fx, domNodes)   # forces
+	resize!(domain.fy, domNodes)
+	resize!(domain.fz, domNodes)
 
- 	dfx = T(undef, domNodes)  # AD derivative of the forces
- 	dfy = T(undef, domNodes)
- 	dfz = T(undef, domNodes)
+ 	resize!(domain.dfx, domNodes)  # AD derivative of the forces
+ 	resize!(domain.dfy, domNodes)
+ 	resize!(domain.dfz, domNodes)
 
-	nodalMass = T(undef, domNodes)  # mass
-	return (x,y,z,xd,yd,zd,xdd,ydd,zdd,fx,fy,fz,dfx,dfy,dfz,nodalMass)
+	resize!(domain.nodalMass, domNodes)  # mass
+	return nothing
 end
 
-function AllocateElemPersistent(prob, domElems, padded_domElems)
-	VDF = prob.devicetype{prob.floattype}
-	VDI = prob.devicetype{IndexT}
-	VDInt = prob.devicetype{Int}
-	matElemlist = VDI(undef, domElems) ;  # material indexset */
-	nodelist = VDI(undef, 8*padded_domElems) ;   # elemToNode connectivity */
+function AllocateElemPersistent!(domain, domElems, padded_domElems)
+	resize!(domain.matElemlist, domElems) ;  # material indexset */
+	resize!(domain.nodelist, 8*padded_domElems) ;   # elemToNode connectivity */
 
-	lxim = VDI(undef, domElems)  # elem connectivity through face g
-	lxip = VDI(undef, domElems)
-	letam = VDI(undef, domElems)
-	letap = VDI(undef, domElems)
-	lzetam = VDI(undef, domElems)
-	lzetap = VDI(undef, domElems)
+	resize!(domain.lxim, domElems)  # elem connectivity through face g
+	resize!(domain.lxip, domElems)
+	resize!(domain.letam, domElems)
+	resize!(domain.letap, domElems)
+	resize!(domain.lzetam, domElems)
+	resize!(domain.lzetap, domElems)
 
-	elemBC = VDInt(undef, domElems)   # elem face symm/free-surf flag g
+	resize!(domain.elemBC, domElems)   # elem face symm/free-surf flag g
 
-	e = VDF(undef, domElems)    # energy g
-	p = VDF(undef, domElems)    # pressure g
+	resize!(domain.e, domElems)    # energy g
+	resize!(domain.p, domElems)    # pressure g
 
-	d_e = VDF(undef, domElems)  # AD derivative of energy E g
+	resize!(domain.d_e, domElems)  # AD derivative of energy E g
 
-	q = VDF(undef, domElems)    # q g
-	ql = VDF(undef, domElems)   # linear term for q g
-	qq = VDF(undef, domElems)   # quadratic term for q g
-	v = VDF(undef, domElems)      # relative volume g
+	resize!(domain.q, domElems)    # q g
+	resize!(domain.ql, domElems)   # linear term for q g
+	resize!(domain.qq, domElems)   # quadratic term for q g
+	resize!(domain.v, domElems)      # relative volume g
 
-	volo = VDF(undef, domElems)   # reference volume g
-	delv = VDF(undef, domElems)   # m_vnew - m_v g
-	vdov = VDF(undef, domElems)   # volume derivative over volume g
+	resize!(domain.volo, domElems)   # reference volume g
+	resize!(domain.delv, domElems)   # m_vnew - m_v g
+	resize!(domain.vdov, domElems)   # volume derivative over volume g
 
-	arealg = VDF(undef, domElems)   # elem characteristic length g
+	resize!(domain.arealg, domElems)   # elem characteristic length g
 
-	ss = VDF(undef, domElems)       # "sound speed" g
+	resize!(domain.ss, domElems)       # "sound speed" g
 
-	elemMass = VDF(undef, domElems)   # mass g
-	return (matElemlist, nodelist, lxim, lxip, letam, letap, lzetam, lzetap, elemBC, e, p, d_e, q, ql, qq, v, volo, delv, vdov, arealg, ss, elemMass)
+	resize!(domain.elemMass, domElems)   # mass g
+	return nothing
+end
+
+function InitializeFields!(domain)
+	# Basic Field Initialization
+
+	fill!(domain.ss,0.0);
+	fill!(domain.e,0.0)
+	fill!(domain.p,0.0)
+	fill!(domain.q,0.0)
+	fill!(domain.v,1.0)
+
+	fill!(domain.d_e,0.0)
+
+	fill!(domain.xd,0.0)
+	fill!(domain.yd,0.0)
+	fill!(domain.zd,0.0)
+
+	fill!(domain.xdd,0.0)
+	fill!(domain.ydd,0.0)
+	fill!(domain.zdd,0.0)
+
+	fill!(domain.nodalMass,0.0)
+end
+
+function BuildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
+	meshEdgeElems = domain.m_tp*nx ;
+
+	resize!(x_h, domNodes)
+	resize!(y_h, domNodes)
+	resize!(z_h, domNodes)
+	# initialize nodal coordinates
+	# INDEXING
+	nidx::IndexT = 1
+	tz = 1.125*(domain.m_planeLoc*nx)/meshEdgeElems
+	for plane in 1:edgeNodes
+		ty = 1.125*(domain.m_rowLoc*nx)/meshEdgeElems
+		for row in 1:edgeNodes
+		tx = 1.125*(domain.m_colLoc*nx)/meshEdgeElems
+			for col in 1:edgeNodes
+				x_h[nidx] = tx
+				y_h[nidx] = ty
+				z_h[nidx] = tz
+				nidx+=1
+				# tx += ds ; // may accumulate roundoff...
+				tx = 1.125*(domain.m_colLoc*nx+col+1)/meshEdgeElems
+			end
+		#// ty += ds ;  // may accumulate roundoff...
+		ty = 1.125*(domain.m_rowLoc*nx+row+1)/meshEdgeElems
+		end
+		#// tz += ds ;  // may accumulate roundoff...
+		tz = 1.125*(domain.m_planeLoc*nx+plane+1)/meshEdgeElems
+	end
+
+	copyto!(domain.x, x_h)
+	copyto!(domain.y, y_h)
+	copyto!(domain.z, z_h)
+
+	resize!(nodelist_h, padded_domElems*8);
+
+	# embed hexehedral elements in nodal point lattice
+	# INDEXING
+	zidx::IndexT = 1
+	nidx = 1
+	for plane in 1:edgeElems
+		for row in 1:edgeElems
+			for col in 1:edgeElems
+				nodelist_h[0*padded_domElems+zidx] = nidx
+				nodelist_h[1*padded_domElems+zidx] = nidx                                   + 1
+				nodelist_h[2*padded_domElems+zidx] = nidx                       + edgeNodes + 1
+				nodelist_h[3*padded_domElems+zidx] = nidx                       + edgeNodes
+				nodelist_h[4*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes
+				nodelist_h[5*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes             + 1
+				nodelist_h[6*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes + edgeNodes + 1
+				nodelist_h[7*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes + edgeNodes
+				zidx+=1
+				nidx+=1
+			end
+		nidx+=1
+		end
+    nidx+=edgeNodes
+	end
+	copyto!(domain.nodelist, nodelist_h)
+end
+
+function SetupConnectivityBC!(domain::Domain, edgeElems)
+	domElems = domain.numElem;
+
+	lxim_h = Vector{IndexT}(undef, domElems)
+	lxip_h = Vector{IndexT}(undef, domElems)
+	letam_h = Vector{IndexT}(undef, domElems)
+	letap_h = Vector{IndexT}(undef, domElems)
+	lzetam_h = Vector{IndexT}(undef, domElems)
+	lzetap_h = Vector{IndexT}(undef, domElems)
+
+    # set up elemement connectivity information
+    lxim_h[1] = 0 ;
+	for i in 2:domElems
+       lxim_h[i]   = i-1
+       lxip_h[i-1] = i
+	end
+    lxip_h[domElems-1] = domElems-1
+
+	# INDEXING
+	for i in 1:edgeElems
+       letam_h[i] = i
+       letap_h[domElems-edgeElems+i] = domElems-edgeElems+i
+	end
+
+	for i in edgeElems:domElems
+       letam_h[i] = i-edgeElems
+       letap_h[i-edgeElems+1] = i
+    end
+
+	for i in 1:edgeElems*edgeElems
+       lzetam_h[i] = i
+       lzetap_h[domElems-edgeElems*edgeElems+i] = domElems-edgeElems*edgeElems+i
+	end
+
+	for i in edgeElems*edgeElems:domElems
+       lzetam_h[i] = i - edgeElems*edgeElems
+       lzetap_h[i-edgeElems*edgeElems+1] = i
+	end
+
+
+	# set up boundary condition information
+	elemBC_h = Vector{IndexT}(undef, domElems)
+	for i in 1:domElems
+		elemBC_h[i] = 0   # clear BCs by default
+	end
+
+	ghostIdx = [typemin(IndexT) for i in 1:6]::Vector{IndexT} # offsets to ghost locations
+
+	pidx = domElems
+	if domain.m_planeMin != 0
+		ghostIdx[1] = pidx
+		pidx += domain.sizeX*domain.sizeY
+	end
+
+	if domain.m_planeMax != 0
+		ghostIdx[2] = pidx
+		pidx += domain.sizeX*domain.sizeY
+	end
+
+	if domain.m_rowMin != 0
+		ghostIdx[3] = pidx
+		pidx += domain.sizeX*domain.sizeZ
+	end
+
+	if domain.m_rowMax != 0
+		ghostIdx[4] = pidx
+		pidx += domain.sizeX*domain.sizeZ
+	end
+
+	if domain.m_colMin != 0
+		ghostIdx[5] = pidx
+		pidx += domain.sizeY*domain.sizeZ
+	end
+
+	if domain.m_colMax != 0
+		ghostIdx[6] = pidx
+	end
+
+	# symmetry plane or free surface BCs
+    for i in 1:edgeElems
+		planeInc = (i-1)*edgeElems*edgeElems
+		rowInc   = (i-1)*edgeElems
+		for j in 1:edgeElems
+			if domain.m_planeLoc == 0
+				elemBC_h[rowInc+j] |= ZETA_M_SYMM
+			else
+				elemBC_h[rowInc+j] |= ZETA_M_COMM
+				lzetam_h[rowInc+j] = ghostIdx[0] + rowInc + j
+			end
+
+			if domain.m_planeLoc == domain.m_tp-1
+				elemBC_h[rowInc+j+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
+			else
+				elemBC_h[rowInc+j+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
+				lzetap_h[rowInc+j+domElems-edgeElems*edgeElems] = ghostIdx[1] + rowInc + j
+			end
+
+			if domain.m_rowLoc == 0
+				elemBC_h[planeInc+j] |= ETA_M_SYMM
+			else
+				elemBC_h[planeInc+j] |= ETA_M_COMM
+				letam_h[planeInc+j] = ghostIdx[2] + rowInc + j
+			end
+
+			if domain.m_rowLoc == domain.m_tp-1
+				elemBC_h[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
+			else
+				elemBC_h[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
+				letap_h[planeInc+j+edgeElems*edgeElems-edgeElems] = ghostIdx[3] +  rowInc + j
+			end
+
+			if domain.m_colLoc == 0
+				elemBC_h[planeInc+j*edgeElems] |= XI_M_SYMM
+			else
+				elemBC_h[planeInc+j*edgeElems] |= XI_M_COMM
+				lxim_h[planeInc+j*edgeElems] = ghostIdx[4] + rowInc + j
+			end
+
+			if domain.m_colLoc == domain.m_tp-1
+				elemBC_h[planeInc+j*edgeElems+edgeElems-1] |= XI_P_FREE
+			else
+				elemBC_h[planeInc+j*edgeElems+edgeElems-1] |= XI_P_COMM
+				lxip_h[planeInc+j*edgeElems+edgeElems-1] = ghostIdx[5] + rowInc + j
+			end
+		end
+	end
+
+	copyto!(domain.elemBC, elemBC_h)
+	copyto!(domain.lxim, lxim_h)
+	copyto!(domain.lxip, lxip_h)
+	copyto!(domain.letam, letam_h)
+	copyto!(domain.letap, letap_h)
+	copyto!(domain.lzetam, lzetam_h)
+	copyto!(domain.lzetap, lzetap_h)
 end
 
 function NewDomain(prob::LuleshProblem)
+	VDF = prob.devicetype{prob.floattype}
+	VDI = prob.devicetype{IndexT}
+	VDInt = prob.devicetype{Int}
 	numRanks = getNumRanks(prob.comm)
 	colLoc = prob.col
 	rowLoc = prob.row
@@ -105,12 +322,49 @@ function NewDomain(prob::LuleshProblem)
 	nr = prob.nr
 	balance = prob.balance
 	cost = prob.cost
+	domain = Domain{prob.floattype}(
+		0, nothing,
+		VDI(), VDI(),
+		VDI(), VDI(), VDI(), VDI(), VDI(), VDI(),
+		VDInt(),
+		VDF(), VDF(),
+		VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(),
+		VDF(), VDF(), VDF(), # volo
+		VDF(),
+		VDF(),
+		VDF(), # elemMass
+		VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		VDF(), VDF(), VDF(),
+		# FIXIT This is wrong
+		VDF(), Vector{prob.floattype}(),
+		VDI(), VDI(), VDI(),
+		VDInt(), VDInt(), VDI(),
+		0.0, 0.0, 0.0, 0.0, 0.0, 0,
+		0.0, 0.0, 0.0, 0.0, 0, 0,
+		0.0, 0.0,
+		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+		0,0,0,0,0,0,0,0,0,
+		0,0,
+		0,0,
+		0,0,0,
+		0,
+		0,0,0,0, VDInt(), VDInt(), VDI(), VDI(), VDI()
 
+	)
 
-	max_streams = 32;
+	domain.max_streams = 32
 	# domain->streams.resize(domain->max_streams);
 	# TODO: CUDA stream stuff goes here
-	streams = nothing
+	domain.streams = nothing
 
 # #   for (Int_t i=0;i<domain->max_streams;i++)
 # #     cudaStreamCreate(&(domain->streams[i]));
@@ -121,97 +375,102 @@ function NewDomain(prob::LuleshProblem)
 #   Index_t domNodes;
 #   Index_t padded_domElems;
 
-#   Vector_h<Index_t> nodelist_h;
-#   Vector_h<Real_t> x_h;
-#   Vector_h<Real_t> y_h;
-#   Vector_h<Real_t> z_h;
+    nodelist_h = Vector{IndexT}()
+    x_h = Vector{prob.floattype}()
+    y_h = Vector{prob.floattype}()
+    z_h = Vector{prob.floattype}()
 
-  if structured
-		m_tp       = tp
-		m_numRanks = numRanks
+	if structured
 
-	    m_colLoc   =   colLoc
-	    m_rowLoc   =   rowLoc
-	    m_planeLoc = planeLoc
+		domain.m_tp       = tp
+		# domain.m_numRanks = numRanks
+
+		domain.m_colLoc   =   colLoc
+		domain.m_rowLoc   =   rowLoc
+		domain.m_planeLoc = planeLoc
 
 		edgeElems = nx
 		edgeNodes = edgeElems+1
 
-		sizeX = edgeElems
-		sizeY = edgeElems
-		sizeZ = edgeElems
+		domain.sizeX = edgeElems
+		domain.sizeY = edgeElems
+		domain.sizeZ = edgeElems
 
-		numElem = sizeX*sizeY*sizeZ ;
-		@show typeof(numElem)
-		padded_numElem = PAD(numElem,32);
-		@show typeof(padded_numElem)
+		domain.numElem = domain.sizeX*domain.sizeY*domain.sizeZ ;
+		domain.padded_numElem = PAD(domain.numElem,32);
 
-		numNode = (sizeX+1)*(sizeY+1)*(sizeZ+1)
-		padded_numNode = PAD(numNode,32);
+		domain.numNode = (domain.sizeX+1)*(domain.sizeY+1)*(domain.sizeZ+1)
+		domain.padded_numNode = PAD(domain.numNode,32);
 
-		domElems = numElem
-		domNodes = numNode
-		padded_domElems = padded_numElem
+		domElems = domain.numElem
+		domNodes = domain.numNode
+		padded_domElems = domain.padded_numElem
 
-		(matElemlist, nodelist, lxim, lxip, letam, letap, lzetam, lzetap,
-		 elemBC, e, p, d_e, q, ql, qq, v, volo, delv, vdov, arealg, ss, elemMass) = AllocateElemPersistent(prob,domElems,padded_domElems);
-		(x,y,z,xd,yd,zd,xdd,ydd,zdd,fx,fy,fz,dfx,dfy,dfz,nodalMass) = AllocateNodalPersistent(prob,domNodes);
+		# Build domain object here. Not nice.
 
-#     domain->SetupCommBuffers(edgeNodes);
 
-#     InitializeFields(domain);
+		AllocateElemPersistent!(domain, domElems, padded_domElems);
+		AllocateNodalPersistent!(domain, domNodes);
 
-#     domain->BuildMesh(nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h);
+	#     domain->SetupCommBuffers(edgeNodes);
 
-#     domain->numSymmX = domain->numSymmY = domain->numSymmZ = 0;
+		InitializeFields!(domain)
 
-#     if (domain->m_colLoc == 0)
-#       domain->numSymmX = (edgeElems+1)*(edgeElems+1) ;
-#     if (domain->m_rowLoc == 0)
-#       domain->numSymmY = (edgeElems+1)*(edgeElems+1) ;
-#     if (domain->m_planeLoc == 0)
-#       domain->numSymmZ = (edgeElems+1)*(edgeElems+1) ;
+		BuildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
 
-#     AllocateSymmX(domain,edgeNodes*edgeNodes);
-#     AllocateSymmY(domain,edgeNodes*edgeNodes);
-#     AllocateSymmZ(domain,edgeNodes*edgeNodes);
+		domain.numSymmX = domain.numSymmY = domain.numSymmZ = 0
 
-#     /* set up symmetry nodesets */
+		if domain.m_colLoc == 0
+			domain.numSymmX = (edgeElems+1)*(edgeElems+1)
+		end
+		if domain.m_rowLoc == 0
+			domain.numSymmY = (edgeElems+1)*(edgeElems+1)
+		end
+		if domain.m_planeLoc == 0
+			domain.numSymmZ = (edgeElems+1)*(edgeElems+1)
+		end
+		resize!(domain.symmX, edgeNodes*edgeNodes)
+		resize!(domain.symmY, edgeNodes*edgeNodes)
+		resize!(domain.symmZ, edgeNodes*edgeNodes)
 
-#     Vector_h<Index_t> symmX_h(domain->symmX.size());
-#     Vector_h<Index_t> symmY_h(domain->symmY.size());
-#     Vector_h<Index_t> symmZ_h(domain->symmZ.size());
+		# Set up symmetry nodesets
 
-#     Int_t nidx = 0 ;
-#     for (Index_t i=0; i<edgeNodes; ++i) {
-#        Index_t planeInc = i*edgeNodes*edgeNodes ;
-#        Index_t rowInc   = i*edgeNodes ;
-#        for (Index_t j=0; j<edgeNodes; ++j) {
-#          if (domain->m_planeLoc == 0) {
-#            symmZ_h[nidx] = rowInc   + j ;
-#          }
-#          if (domain->m_rowLoc == 0) {
-#            symmY_h[nidx] = planeInc + j ;
-#          }
-#          if (domain->m_colLoc == 0) {
-#            symmX_h[nidx] = planeInc + j*edgeNodes ;
-#          }
-#         ++nidx ;
-#        }
-#     }
+		symmX_h = convert(Vector, domain.symmX)
+		symmY_h = convert(Vector, domain.symmY)
+		symmZ_h = convert(Vector, domain.symmZ)
 
-#     if (domain->m_planeLoc == 0)
-#       domain->symmZ = symmZ_h;
-#     if (domain->m_rowLoc == 0)
-#       domain->symmY = symmY_h;
-#     if (domain->m_colLoc == 0)
-#       domain->symmX = symmX_h;
+		nidx = 1
+		# INDEXING
+		for i in 1:edgeNodes
+			planeInc = (i-1)*edgeNodes*edgeNodes
+			rowInc   = (i-1)*edgeNodes
+			for j in 1:edgeNodes
+				if domain.m_planeLoc == 0
+					symmZ_h[nidx] = rowInc   + j
+				end
+				if domain.m_rowLoc == 0
+					symmY_h[nidx] = planeInc + j
+				end
+				if domain.m_colLoc == 0
+					symmX_h[nidx] = planeInc + j*edgeNodes
+				end
+				nidx+=1
+			end
+		end
+		if domain.m_planeLoc == 0
+			domain.symmZ = symmZ_h
+		end
+		if domain.m_rowLoc == 0
+			domain.symmY = symmY_h
+		end
+		if domain.m_colLoc == 0
+			domain.symmX = symmX_h
+		end
 
-#     SetupConnectivityBC(domain, edgeElems);
-#   }
-  else
-	error("Reading unstructured mesh is currently missing in the Julia version of LULESH.")
-  end
+		# SetupConnectivityBC!(domain, edgeElems);
+	else
+		error("Reading unstructured mesh is currently missing in the Julia version of LULESH.")
+	end
 
 #   /* set up node-centered indexing of elements */
 #   Vector_h<Index_t> nodeElemCount_h(domNodes);
