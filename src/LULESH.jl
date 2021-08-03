@@ -14,8 +14,8 @@ const IndexT = Int
 const MAX_FIELDS_PER_MPI_COMM = 6
 
 struct LuleshProblem
-	num_iters::Int
-	structured::Bool
+    num_iters::Int
+    structured::Bool
     nx::Int
     nr::Int
     balance::Int
@@ -26,7 +26,7 @@ struct LuleshProblem
     side::Int
     devicetype
     floattype
-	comm::Union{MPI.Comm, Nothing}
+    comm::Union{MPI.Comm, Nothing}
     function LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
         !MPI.Initialized() && MPI.Init()
         col, row, plane, side = InitMeshDecomp(comm)
@@ -37,6 +37,7 @@ end
 
 export LuleshProblem
 
+include("bc.jl")
 include("types.jl")
 include("domain.jl")
 include("mpi.jl")
@@ -46,18 +47,18 @@ export printUsage, IndexT, NewDomain
 
 
 function InitMeshDecomp(comm)
-	# Assume cube processor layout for now
+    # Assume cube processor layout for now
     numRanks = getNumRanks(comm)
     myRank = getMyRank(comm)
-	testProcs = floor(cbrt(numRanks+0.5))
+    testProcs = floor(cbrt(numRanks+0.5))
     @show testProcs, numRanks
-	if (testProcs*testProcs*testProcs != numRanks)
-		error("Num processors must be a cube of an integer (1, 8, 27, ...)")
-	end
+    if (testProcs*testProcs*testProcs != numRanks)
+        error("Num processors must be a cube of an integer (1, 8, 27, ...)")
+    end
     @show typeof(testProcs)
     # TODO This is not good for the padding
-	if (MAX_FIELDS_PER_MPI_COMM > getCacheCoherencePad(testProcs))
-    	error("corner element comm buffers too small. MAX_FIELDS_PER_MPI_COMM > CACHE_COHERENCE_PAD_REAL ($MAX_FIELDS_PER_MPI_COMM > $(getCacheCoherencePad(testProcs))")
+    if (MAX_FIELDS_PER_MPI_COMM > getCacheCoherencePad(testProcs))
+        error("corner element comm buffers too small. MAX_FIELDS_PER_MPI_COMM > CACHE_COHERENCE_PAD_REAL ($MAX_FIELDS_PER_MPI_COMM > $(getCacheCoherencePad(testProcs))")
     end
     testProcs = convert(Int, testProcs)
     dx = convert(Int, testProcs)
