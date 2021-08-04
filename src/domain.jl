@@ -1,10 +1,3 @@
-
-function sortRegions(regReps_h, regSorted_h, ::AbstractDomain)
-end
-
-function createRegionIndexSets(nr, balance, ::AbstractDomain)
-end
-
 # access elements for comms
 get_delv_xi(idx::IndexT, dom::AbstractDomain) = dom.d_delv_xi[idx]
 get_delv_eta(idx::IndexT, dom::AbstractDomain) = dom.d_delv_eta[idx]
@@ -38,7 +31,7 @@ rowLoc(dom::AbstractDomain) = dom.m_rowLoc
 planeLoc(dom::AbstractDomain) = dom.m_planeLoc
 tp(dom::AbstractDomain) = dom.m_tp
 
-function AllocateNodalPersistent!(domain, domNodes)
+function allocateNodalPersistent!(domain, domNodes)
     resize!(domain.x, domNodes)   # coordinates
     resize!(domain.y, domNodes)
     resize!(domain.z, domNodes)
@@ -63,9 +56,9 @@ function AllocateNodalPersistent!(domain, domNodes)
     return nothing
 end
 
-function AllocateElemPersistent!(domain, domElems, padded_domElems)
-    resize!(domain.matElemlist, domElems) ;  # material indexset */
-    resize!(domain.nodelist, 8*padded_domElems) ;   # elemToNode connectivity */
+function allocateElemPersistent!(domain, domElems, padded_domElems)
+    resize!(domain.matElemlist, domElems) ;  # material indexset
+    resize!(domain.nodelist, 8*padded_domElems) ;   # elemToNode connectivity
 
     resize!(domain.lxim, domElems)  # elem connectivity through face g
     resize!(domain.lxip, domElems)
@@ -98,7 +91,7 @@ function AllocateElemPersistent!(domain, domElems, padded_domElems)
     return nothing
 end
 
-function InitializeFields!(domain)
+function initializeFields!(domain)
     # Basic Field Initialization
 
     fill!(domain.ss,0.0);
@@ -120,7 +113,7 @@ function InitializeFields!(domain)
     fill!(domain.nodalMass,0.0)
 end
 
-function BuildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
+function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
     meshEdgeElems = domain.m_tp*nx ;
 
     resize!(x_h, domNodes)
@@ -180,7 +173,7 @@ function BuildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems,
     copyto!(domain.nodelist, nodelist_h)
 end
 
-function SetupConnectivityBC!(domain::Domain, edgeElems)
+function setupConnectivityBC!(domain::Domain, edgeElems)
     domElems = domain.numElem;
 
     lxim_h = Vector{IndexT}(undef, domElems)
@@ -317,6 +310,162 @@ function SetupConnectivityBC!(domain::Domain, edgeElems)
     copyto!(domain.lzetap, lzetap_h)
 end
 
+function sortRegions(domain::Domain, regReps_h::Vector{IndexT}, regSorted_h::Vector{IndexT})
+    regIndex = [v for v in 1:domain.numReg]::Vector{IndexT}
+
+    for i in 1:domain.numReg-1
+        for j in 1:domain.numReg-i-1
+            if regReps_h[j] < regReps_h[j+1]
+                temp = regReps_h[j]
+                regReps_h[j] = regReps_h[j+1]
+                regReps_h[j+1] = temp
+
+                temp = domain.regElemSize[j]
+                domain.regElemSize[j] = domain.regElemSize[j+1]
+                domain.regElemSize[j+1] = temp
+
+                temp = domain.regIndex[j]
+                regIndex[j] = regIndex[j+1]
+                regIndex[j+1] = temp
+            end
+        end
+    end
+    for i in 1:domain.numReg
+        regSorted_h[domain.regIndex[i]] = i
+    end
+end
+
+function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::MPI.Comm)
+    @unpack_Domain domain
+    myRank = getMyRank(comm)
+    Random.seed!(myRank)
+    numReg = nr
+    balance = b
+    @show numReg
+    regElemSize = Vector{Int}(undef, numReg)
+    nextIndex::IndexT = 0
+
+    regCSR_h = convert(Vector{Int}, regCSR) # records the begining and end of each region
+    regReps_h = convert(Vector{Int}, regReps) # records the rep number per region
+    regNumList_h = convert(Vector{IndexT}, regNumList) # Region number per domain element
+    regElemlist_h = convert(Vector{IndexT}, regElemlist) # region indexset
+    regSorted_h = convert(Vector{IndexT}, regSorted) # keeps index of sorted regions
+
+    # if we only have one region just fill it
+    # Fill out the regNumList with material numbers, which are always
+    # the region index plus one
+    if numReg == 1
+        while nextIndex < numElem
+            regNumList_h[nextIndex] = 1
+            nextIndex+=1
+        end
+        regElemSize[1] = 0
+    # If we have more than one region distribute the elements.
+    else
+        lastReg::Int = -1
+        runto::IndexT = 0
+        costDenominator::Int = 0
+        regBinEnd = Vector{Int}(undef, numReg)
+        # Determine the relative weights of all the regions.
+        for i in 1:numReg
+            regElemSize[i] = 0
+            # INDEXING
+            costDenominator += i^balance  # Total cost of all regions
+            regBinEnd[i] = costDenominator  # Chance of hitting a given region is (regBinEnd[i] - regBinEdn[i-1])/costDenominator
+        end
+        # Until all elements are assigned
+        while nextIndex < numElem
+            # pick the region
+            regionVar = rand(Int) % costDenominator
+            i = 0
+            # INDEXING
+            while regionVar >= regBinEnd[i+1]
+                i += 1
+            end
+            # rotate the regions based on MPI rank.  Rotation is Rank % NumRegions
+            regionNum = ((i + myRank) % numReg) + 1
+            # make sure we don't pick the same region twice in a row
+            while regionNum == lastReg
+                regionVar = rand(Int) % costDenominator
+                i = 0
+                while regionVar >= regBinEnd[i+1]
+                    i += 1
+                end
+                regionNum = ((i + myRank) % numReg) + 1
+            end
+            # Pick the bin size of the region and determine the number of elements.
+            binSize = rand(Int) % 1000
+            if binSize < 773
+                elements = rand(Int) % 15 + 1
+            elseif binSize < 937
+                elements = rand(Int) % 16 + 16
+            elseif binSize < 970
+                elements = rand(Int) % 32 + 32
+            elseif binSize < 974
+                elements = rand(Int) % 64 + 64
+            elseif binSize < 978
+                elements = rand(Int) % 128 + 128
+            elseif binSize < 981
+                elements = rand(Int) % 256 + 256
+            else
+                elements = rand(Int) % 1537 + 512
+            end
+            runto = elements + nextIndex
+            # Store the elements.  If we hit the end before we run out of elements then just stop.
+            while nextIndex < runto && nextIndex < numElem
+                # INDEXING
+                regNumList_h[nextIndex+1] = regionNum
+                nextIndex += 1
+            end
+            lastReg = regionNum
+        end
+    end
+    # Convert regNumList to region index sets
+    # First, count size of each region
+    for i in 1:numElem
+        # INDEXING
+        r = regNumList_h[i] # region index == regnum-1
+        regElemSize[r]+=1
+    end
+
+    # Second, allocate each region index set
+    for r in 1:numReg
+        if r < div(numReg, 2)
+            rep = 1
+        elseif r < (numReg - div((numReg+15),20))
+            rep = 1 + cost;
+        else
+            rep = 10 * (1 + cost)
+        end
+        regReps_h[r] = rep
+    end
+
+    sortRegions(domain, regReps_h, regSorted_h);
+
+    regCSR_h[1] = 0;
+    # Second, allocate each region index set
+    for i in 2:numReg
+        regCSR_h[i] = regCSR_h[i-1] + regElemSize[i-1];
+    end
+
+    # Third, fill index sets
+    for i in 1:numElem
+        # INDEXING
+        r = regSorted_h[regNumList_h[i]] # region index == regnum-1
+        # regElemlist_h[regCSR_h[r]] = i
+        regElemlist_h[regCSR_h[r+1]+1] = i
+        regCSR_h[r+1] += 1
+    end
+
+    # Copy to device
+    copyto!(regCSR, regCSR_h) # records the begining and end of each region
+    copyto!(regReps, regReps_h) # records the rep number per region
+    copyto!(regNumList, regNumList_h) # Region number per domain element
+    copyto!(regElemlist, regElemlist_h) # region indexset
+    copyto!(regSorted, regSorted_h) # keeps index of sorted regions
+    @unpack_Domain domain
+end
+
 function NewDomain(prob::LuleshProblem)
     VDF = prob.devicetype{prob.floattype}
     VDI = prob.devicetype{IndexT}
@@ -366,7 +515,7 @@ function NewDomain(prob::LuleshProblem)
         0,0,
         0,0,0,
         0,
-        0,0,0,0, VDInt(), VDInt(), VDI(), VDI(), VDI()
+        0,0,0, Vector{Int}(), VDInt(), VDInt(), VDI(), VDI(), VDI()
 
     )
 
@@ -418,14 +567,14 @@ function NewDomain(prob::LuleshProblem)
         # Build domain object here. Not nice.
 
 
-        AllocateElemPersistent!(domain, domElems, padded_domElems);
-        AllocateNodalPersistent!(domain, domNodes);
+        allocateElemPersistent!(domain, domElems, padded_domElems);
+        allocateNodalPersistent!(domain, domNodes);
 
     #     domain->SetupCommBuffers(edgeNodes);
 
-        InitializeFields!(domain)
+        initializeFields!(domain)
 
-        BuildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
+        buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
 
         domain.numSymmX = domain.numSymmY = domain.numSymmZ = 0
 
@@ -476,7 +625,7 @@ function NewDomain(prob::LuleshProblem)
             domain.symmX = symmX_h
         end
 
-        SetupConnectivityBC!(domain, edgeElems)
+        setupConnectivityBC!(domain, edgeElems)
     else
         error("Reading unstructured mesh is currently missing in the Julia version of LULESH.")
     end
@@ -591,7 +740,7 @@ function NewDomain(prob::LuleshProblem)
             z_local[lnode+1] = z_h[gnode]
         end
         # volume calculations
-        volume = CalcElemVolume(x_local, y_local, z_local )
+        volume = calcElemVolume(x_local, y_local, z_local )
         volo_h[i] = volume
         elemMass_h[i] = volume
         for j in 0:7
@@ -633,6 +782,6 @@ function NewDomain(prob::LuleshProblem)
     # throughout the run, but could be changed every cycle to
     # simulate effects of ALE on the lagrange solver
 
-    # domain->CreateRegionIndexSets(nr, balance);
+    createRegionIndexSets!(domain, nr, balance, prob.comm);
     return nothing
 end

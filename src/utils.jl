@@ -14,7 +14,7 @@ end
 PAD_DIV(nbytes, align) = nbytes + div(align - 1, align)
 PAD(nbytes, align) = PAD_DIV(nbytes,align) * align
 
-function CalcElemVolume(
+function calcElemVolume(
     x0, x1,x2, x3, x4, x5, x6, x7, y0, y1, y2, y3, y4, y5, y6, y7,
     z0, z1, z2, z3, z4, z5, z6, z7
 )
@@ -91,7 +91,7 @@ function CalcElemVolume(
     return volume
 end
 
-CalcElemVolume(x, y, z) = CalcElemVolume(
+calcElemVolume(x, y, z) = calcElemVolume(
     x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8],
     y[1], y[2], y[3], y[4], y[5], y[6], y[7], y[8],
     z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8]

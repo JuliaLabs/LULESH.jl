@@ -20,9 +20,11 @@ end
 
 #   bool structured = ( strcmp(argv[1],"-s") == 0 );
 structured = occursin("-s", ARGS[1])
+structured = true
 @show structured
 # assume cube subdomain geometry for now (nx)
-nx = parse(IndexT, ARGS[2])
+# nx = parse(IndexT, ARGS[2])
+nx = 45
 # TODO: change default nr to 11
 nr = 11
 balance = 1

@@ -1,4 +1,4 @@
-mutable struct Domain{FT}
+@with_kw mutable struct Domain{FT}
     # Something CUDA
     max_streams::IndexT
     streams::Nothing
@@ -174,7 +174,7 @@ mutable struct Domain{FT}
     numReg::Int                     # number of regions (def:11)
     balance::Int                    # Load balance between regions of a domain (def: 1)
     cost::Int                       # imbalance cost (def: 1)
-    regElemSize::Int                # Size of region sets
+    regElemSize::Vector{Int}        # Size of region sets
     regCSR::VD{Int}                 # records the begining and end of each region
     regReps::VD{Int}                # records the rep number per region
     regNumList::VD{IndexT}         # Region number per domain element

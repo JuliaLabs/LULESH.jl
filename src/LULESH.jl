@@ -3,7 +3,9 @@ module LULESH
 using CEnum
 using CUDA
 using MPI
+using Parameters
 using Printf
+using Random
 
 abstract type AbstractDomain end
 # Device vector types
