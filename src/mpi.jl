@@ -6,3 +6,9 @@ getMyRank(::Nothing) = 0
 
 getNumRanks(comm::MPI.Comm) = MPI.Comm_size(comm)
 getNumRanks(::Nothing) = 1
+
+getWtime(::MPI.Comm) = MPI.Wtime()
+getWtime(::Nothing) = time()
+
+comm_max(data::Float64, comm::MPI.Comm) = MPI.Allreduce(data, MPI.MAX, comm)
+comm_max(data::Float64, ::Nothing) = data

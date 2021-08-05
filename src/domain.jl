@@ -56,9 +56,9 @@ function allocateNodalPersistent!(domain, domNodes)
     return nothing
 end
 
-function allocateElemPersistent!(domain, domElems, padded_domElems)
+function allocateElemPersistent!(domain, domElems)
     resize!(domain.matElemlist, domElems) ;  # material indexset
-    resize!(domain.nodelist, 8*padded_domElems) ;   # elemToNode connectivity
+    resize!(domain.nodelist, 8*domElems) ;   # elemToNode connectivity
 
     resize!(domain.lxim, domElems)  # elem connectivity through face g
     resize!(domain.lxip, domElems)
@@ -113,7 +113,7 @@ function initializeFields!(domain)
     fill!(domain.nodalMass,0.0)
 end
 
-function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
+function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y_h, z_h, nodelist_h)
     meshEdgeElems = domain.m_tp*nx ;
 
     resize!(x_h, domNodes)
@@ -145,24 +145,24 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems,
     copyto!(domain.x, x_h)
     copyto!(domain.y, y_h)
     copyto!(domain.z, z_h)
-
-    resize!(nodelist_h, padded_domElems*8);
+    @show domElems
+    resize!(nodelist_h, domElems*8);
 
     # embed hexehedral elements in nodal point lattice
     # INDEXING
-    zidx::IndexT = 1
+    zidx::IndexT = 0
     nidx = 1
     for plane in 1:edgeElems
         for row in 1:edgeElems
             for col in 1:edgeElems
-                nodelist_h[0*padded_domElems+zidx] = nidx
-                nodelist_h[1*padded_domElems+zidx] = nidx                                   + 1
-                nodelist_h[2*padded_domElems+zidx] = nidx                       + edgeNodes + 1
-                nodelist_h[3*padded_domElems+zidx] = nidx                       + edgeNodes
-                nodelist_h[4*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes
-                nodelist_h[5*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes             + 1
-                nodelist_h[6*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes + edgeNodes + 1
-                nodelist_h[7*padded_domElems+zidx] = nidx + edgeNodes*edgeNodes + edgeNodes
+                nodelist_h[8*zidx+1] = nidx
+                nodelist_h[8*zidx+2] = nidx                                   + 1
+                nodelist_h[8*zidx+3] = nidx                       + edgeNodes + 1
+                nodelist_h[8*zidx+4] = nidx                       + edgeNodes
+                nodelist_h[8*zidx+5] = nidx + edgeNodes*edgeNodes
+                nodelist_h[8*zidx+6] = nidx + edgeNodes*edgeNodes             + 1
+                nodelist_h[8*zidx+7] = nidx + edgeNodes*edgeNodes + edgeNodes + 1
+                nodelist_h[8*zidx+8] = nidx + edgeNodes*edgeNodes + edgeNodes
                 zidx+=1
                 nidx+=1
             end
@@ -170,6 +170,12 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems,
         end
     nidx+=edgeNodes
     end
+    @show nodelist_h[2]
+    @show edgeElems
+    @show edgeNodes
+    @show length(nodelist_h)
+    @show minimum(nodelist_h)
+    @show maximum(nodelist_h)
     copyto!(domain.nodelist, nodelist_h)
 end
 
@@ -310,38 +316,38 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
     copyto!(domain.lzetap, lzetap_h)
 end
 
-function sortRegions(domain::Domain, regReps_h::Vector{IndexT}, regSorted_h::Vector{IndexT})
-    regIndex = [v for v in 1:domain.numReg]::Vector{IndexT}
+function sortRegions(regReps_h::Vector{IndexT}, regSorted_h::Vector{IndexT}, regElemSize, numReg)
+    regIndex = [v for v in 1:numReg]::Vector{IndexT}
 
-    for i in 1:domain.numReg-1
-        for j in 1:domain.numReg-i-1
+    for i in 1:numReg-1
+        for j in 1:numReg-i-1
             if regReps_h[j] < regReps_h[j+1]
                 temp = regReps_h[j]
                 regReps_h[j] = regReps_h[j+1]
                 regReps_h[j+1] = temp
 
-                temp = domain.regElemSize[j]
-                domain.regElemSize[j] = domain.regElemSize[j+1]
-                domain.regElemSize[j+1] = temp
+                temp = regElemSize[j]
+                regElemSize[j] = regElemSize[j+1]
+                regElemSize[j+1] = temp
 
-                temp = domain.regIndex[j]
+                temp = regIndex[j]
                 regIndex[j] = regIndex[j+1]
                 regIndex[j+1] = temp
             end
         end
     end
-    for i in 1:domain.numReg
-        regSorted_h[domain.regIndex[i]] = i
+    for i in 1:numReg
+        regSorted_h[regIndex[i]] = i
     end
 end
 
-function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::MPI.Comm)
+function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::Union{MPI.Comm, Nothing})
+    domain.numReg = nr
+    domain.balance = b
     @unpack_Domain domain
     myRank = getMyRank(comm)
     Random.seed!(myRank)
-    numReg = nr
-    balance = b
-    @show numReg
+
     regElemSize = Vector{Int}(undef, numReg)
     nextIndex::IndexT = 0
 
@@ -356,7 +362,7 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::MPI.Comm)
     # the region index plus one
     if numReg == 1
         while nextIndex < numElem
-            regNumList_h[nextIndex] = 1
+            regNumList_h[nextIndex+1] = 1
             nextIndex+=1
         end
         regElemSize[1] = 0
@@ -439,8 +445,7 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::MPI.Comm)
         end
         regReps_h[r] = rep
     end
-
-    sortRegions(domain, regReps_h, regSorted_h);
+    sortRegions(regReps_h, regSorted_h, regElemSize, numReg);
 
     regCSR_h[1] = 0;
     # Second, allocate each region index set
@@ -452,9 +457,8 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::MPI.Comm)
     for i in 1:numElem
         # INDEXING
         r = regSorted_h[regNumList_h[i]] # region index == regnum-1
-        # regElemlist_h[regCSR_h[r]] = i
-        regElemlist_h[regCSR_h[r+1]+1] = i
-        regCSR_h[r+1] += 1
+        regElemlist_h[regCSR_h[r]+1] = i
+        regCSR_h[r] += 1
     end
 
     # Copy to device
@@ -466,7 +470,7 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::MPI.Comm)
     @unpack_Domain domain
 end
 
-function NewDomain(prob::LuleshProblem)
+function Domain(prob::LuleshProblem)
     VDF = prob.devicetype{prob.floattype}
     VDI = prob.devicetype{IndexT}
     VDInt = prob.devicetype{Int}
@@ -511,8 +515,8 @@ function NewDomain(prob::LuleshProblem)
         0.0, 0.0,
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         0,0,0,0,0,0,0,0,0,
-        0,0,
-        0,0,
+        0,
+        0,
         0,0,0,
         0,
         0,0,0, Vector{Int}(), VDInt(), VDInt(), VDI(), VDI(), VDI()
@@ -555,26 +559,26 @@ function NewDomain(prob::LuleshProblem)
         domain.sizeZ = edgeElems
 
         domain.numElem = domain.sizeX*domain.sizeY*domain.sizeZ ;
-        domain.padded_numElem = PAD(domain.numElem,32);
+        # domain.padded_numElem = PAD(domain.numElem,32);
 
         domain.numNode = (domain.sizeX+1)*(domain.sizeY+1)*(domain.sizeZ+1)
-        domain.padded_numNode = PAD(domain.numNode,32);
+        # domain.padded_numNode = PAD(domain.numNode,32);
 
         domElems = domain.numElem
         domNodes = domain.numNode
-        padded_domElems = domain.padded_numElem
+        # padded_domElems = domain.padded_numElem
 
         # Build domain object here. Not nice.
 
 
-        allocateElemPersistent!(domain, domElems, padded_domElems);
+        allocateElemPersistent!(domain, domElems);
         allocateNodalPersistent!(domain, domNodes);
 
     #     domain->SetupCommBuffers(edgeNodes);
 
         initializeFields!(domain)
 
-        buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, padded_domElems, x_h, y_h, z_h, nodelist_h)
+        buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y_h, z_h, nodelist_h)
 
         domain.numSymmX = domain.numSymmY = domain.numSymmZ = 0
 
@@ -634,7 +638,7 @@ function NewDomain(prob::LuleshProblem)
     # INDEXING
     for i in 1:domElems
         for j in 0:7
-            nodeElemCount_h[nodelist_h[j*padded_domElems+i]]+=1
+            nodeElemCount_h[nodelist_h[j*domElems+i]]+=1
         end
     end
 
@@ -649,8 +653,8 @@ function NewDomain(prob::LuleshProblem)
 
     for j in 0:7
         for i in 1:domElems
-            m = nodelist_h[padded_domElems*j+i]
-            k = padded_domElems*j + i
+            m = nodelist_h[domElems*j+i]
+            k = domElems*j + i
             # INDEXING
             offset = nodeElemStart_h[m] + nodeElemCount_h[m]
             nodeElemCornerList_h[offset+1] = k
@@ -661,7 +665,7 @@ function NewDomain(prob::LuleshProblem)
     clSize = nodeElemStart_h[domNodes] + nodeElemCount_h[domNodes]
     for i in 1:clSize
         clv = nodeElemCornerList_h[i] ;
-        if (clv < 0) || (clv > padded_domElems*8)
+        if (clv < 0) || (clv > domElems*8)
             error("AllocateNodeElemIndexes(): nodeElemCornerList entry out of range!")
         end
     end
@@ -734,7 +738,7 @@ function NewDomain(prob::LuleshProblem)
         y_local = Vector{prob.floattype}(undef, 8)
         z_local = Vector{prob.floattype}(undef, 8)
         for lnode in 0:7
-            gnode = nodelist_h[lnode*padded_domElems+i]
+            gnode = nodelist_h[lnode*domElems+i]
             x_local[lnode+1] = x_h[gnode]
             y_local[lnode+1] = y_h[gnode]
             z_local[lnode+1] = z_h[gnode]
@@ -744,7 +748,7 @@ function NewDomain(prob::LuleshProblem)
         volo_h[i] = volume
         elemMass_h[i] = volume
         for j in 0:7
-            gnode = nodelist_h[j*padded_domElems+i]
+            gnode = nodelist_h[j*domElems+i]
             nodalMass_h[gnode] += volume / 8.0
         end
     end
@@ -783,5 +787,154 @@ function NewDomain(prob::LuleshProblem)
     # simulate effects of ALE on the lagrange solver
 
     createRegionIndexSets!(domain, nr, balance, prob.comm);
+    return domain
+end
+
+function initStressTermsForElems(domain::Domain, sigxx, sigyy, sigzz)
+    # Based on FORTRAN implementation down from here
+    sigxx .=  .- domain.p .- domain.q
+    sigyy .=  .- domain.p .- domain.q
+    sigzz .=  .- domain.p .- domain.q
+end
+function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
+    # Based on FORTRAN implementation down from here
+    # loop over all elements
+    numElem8 = domain.numElem*8
+    T = typeof(domain.x)
+    x_local = T(undef, 8)
+    y_local = T(undef, 8)
+    z_local = T(undef, 8)
+    fx_elem = T(undef, numElem8)
+    fy_elem = T(undef, numElem8)
+    fz_elem = T(undef, numElem8)
+    @show minimum(domain.nodelist)
+    @show maximum(domain.nodelist)
+    @show length(domain.x)
+    for k in 1:domain.numElem
+        for lnode in 1:8
+            # INDEXING
+            gnode = domain.nodelist[lnode + (k-1)*8]
+            x_local[lnode] = domain.x[gnode]
+            y_local[lnode] = domain.y[gnode]
+            z_local[lnode] = domain.z[gnode]
+        end
+    end
+
+end
+
+function calcVolumeForceForElems(domain::Domain)
+    # Based on FORTRAN implementation down from here
+    hgcoef = domain.hgcoef
+    numElem = domain.numElem
+    VTD = typeof(domain.x)
+    sigxx = VTD(undef, numElem)
+    sigyy = VTD(undef, numElem)
+    sigzz = VTD(undef, numElem)
+    determ = VTD(undef, numElem)
+
+    # Sum contributions to total stress tensor
+    initStressTermsForElems(domain, sigxx, sigyy, sigzz)
+
+    #   call elemlib stress integration loop to produce nodal forces from
+    #   material stresses.
+    integrateStressForElems(domain, sigxx, sigyy, sigzz, determ)
+
+
+end
+
+function calcForceForNodes(domain::Domain)
+# #if USE_MPI
+#   CommRecv(*domain, MSG_COMM_SBN, 3,
+#            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
+#            true, false) ;
+# #endif
+
+  calcVolumeForceForElems(domain);
+
+#   # moved here from the main loop to allow async execution with GPU work
+#   TimeIncrement(domain);
+
+# #if USE_MPI
+#   // initialize pointers
+#   domain->d_fx = domain->fx.raw();
+#   domain->d_fy = domain->fy.raw();
+#   domain->d_fz = domain->fz.raw();
+
+#   Domain_member fieldData[3] ;
+#   fieldData[0] = &Domain::get_fx ;
+#   fieldData[1] = &Domain::get_fy ;
+#   fieldData[2] = &Domain::get_fz ;
+
+#   CommSendGpu(*domain, MSG_COMM_SBN, 3, fieldData,
+#            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
+#            true, false, domain->streams[2]) ;
+#   CommSBNGpu(*domain, 3, fieldData, &domain->streams[2]) ;
+#endif
+end
+
+function lagrangeNodal(domain::Domain)
+# #ifdef SEDOV_SYNC_POS_VEL_EARLY
+#    Domain_member fieldData[6] ;
+# #endif
+
+    u_cut = domain.u_cut
+    # time of boundary condition evaluation is beginning of step for force and
+    # acceleration boundary conditions.
+    calcForceForNodes(domain)
+
+# #if USE_MPI
+# #ifdef SEDOV_SYNC_POS_VEL_EARLY
+#    CommRecv(*domain, MSG_SYNC_POS_VEL, 6,
+#             domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
+#             false, false) ;
+# #endif
+# #endif
+
+#   CalcAccelerationForNodes(domain);
+
+#   ApplyAccelerationBoundaryConditionsForNodes(domain);
+
+#   CalcPositionAndVelocityForNodes(u_cut, domain);
+
+# #if USE_MPI
+# #ifdef SEDOV_SYNC_POS_VEL_EARLY
+#   // initialize pointers
+#   domain->d_x = domain->x.raw();
+#   domain->d_y = domain->y.raw();
+#   domain->d_z = domain->z.raw();
+
+#   domain->d_xd = domain->xd.raw();
+#   domain->d_yd = domain->yd.raw();
+#   domain->d_zd = domain->zd.raw();
+
+#   fieldData[0] = &Domain::get_x ;
+#   fieldData[1] = &Domain::get_y ;
+#   fieldData[2] = &Domain::get_z ;
+#   fieldData[3] = &Domain::get_xd ;
+#   fieldData[4] = &Domain::get_yd ;
+#   fieldData[5] = &Domain::get_zd ;
+
+#   CommSendGpu(*domain, MSG_SYNC_POS_VEL, 6, fieldData,
+#            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
+#            false, false, domain->streams[2]) ;
+#   CommSyncPosVelGpu(*domain, &domain->streams[2]) ;
+# #endif
+# #endif
     return nothing
+end
+
+
+
+function lagrangeLeapFrog(domain::Domain)
+
+   # calculate nodal forces, accelerations, velocities, positions, with
+   # applied boundary conditions and slide surface considerations */
+   lagrangeNodal(domain)
+
+   # calculate element quantities (i.e. velocity gradient & q), and update
+   # material states */
+   # LagrangeElements(domain)
+
+   # CalcTimeConstraintsForElems(domain)
+   return nothing
 end

@@ -36,17 +36,13 @@ struct LuleshProblem
     end
 end
 
-
-export LuleshProblem
-
 include("bc.jl")
 include("types.jl")
 include("domain.jl")
 include("mpi.jl")
 include("utils.jl")
 
-export printUsage, IndexT, NewDomain
-
+export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime, lagrangeLeapFrog, comm_max
 
 function InitMeshDecomp(comm)
     # Assume cube processor layout for now

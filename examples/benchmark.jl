@@ -1,6 +1,7 @@
 using CUDA
 using LULESH
 using MPI
+using Printf
 
 
 if length(ARGS) < 2
@@ -23,15 +24,16 @@ structured = occursin("-s", ARGS[1])
 structured = true
 @show structured
 # assume cube subdomain geometry for now (nx)
-# nx = parse(IndexT, ARGS[2])
-nx = 45
+nx = parse(IndexT, ARGS[2])
+# nx = 45
 # TODO: change default nr to 11
-nr = 11
+nr = 1
 balance = 1
 cost = 1
-devicetype = CuVector
+devicetype = Vector
 floattype = Float64
-prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, CuVector, Float64, MPI.COMM_WORLD)
+# To disable MPI, pass 'nothing' as the last argument
+prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, Vector, Float64, nothing)
 
 #   Int_t numRanks ;
 #   Int_t myRank ;
@@ -57,8 +59,8 @@ prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, CuVector, Flo
 
 # TODO: modify this constructor to account for new fields
 # TODO: setup communication buffers
-locDom = NewDomain(prob)
-# locDom = NewDomain(numRanks, col, row, plane, nx, side, structured, nr, balance, cost);
+
+domain = Domain(prob)
 
 # #if USE_MPI
 #    // copy to the host for mpi transfer
@@ -85,62 +87,40 @@ locDom = NewDomain(prob)
 #   cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 #   cudaDeviceSetLimit(cudaLimitMallocHeapSize,1024*1024*1024);
 
-#   /* timestep to solution */
-#   int its=0;
-
-#   if (myRank == 0) {
-#     if (structured)
-#       printf("Running until t=%f, Problem size=%dx%dx%d\n",locDom->stoptime,nx,nx,nx);
-#     else
-#       printf("Running until t=%f, Problem size=%d \n",locDom->stoptime,locDom->numElem);
-#   }
-
+@show domain.time_h
+@show domain.stoptime
+if getMyRank(prob.comm) == 0
+    if (structured)
+        @printf("Running until t=%f, Problem size=%dx%dx%d\n", domain.stoptime, nx, nx, nx)
+    else
+        @printf("Running until t=%f, Problem size=%d \n", domain.stoptime, domain.numElem)
+        @warn "Unstructured setup not supported"
+    end
+end
+# timestep to solution
+its = 0
 #   cudaProfilerStart();
-
-# #if USE_MPI
-#    double start = MPI_Wtime();
-# #else
-#    timeval start;
-#    gettimeofday(&start, NULL) ;
-# #endif
-
-#   while(locDom->time_h < locDom->stoptime)
-#   {
-#     // this has been moved after computation of volume forces to hide launch latencies
-#     //TimeIncrement(locDom) ;
-
-#     LagrangeLeapFrog(locDom) ;
-
-#     checkErrors(locDom,its,myRank);
-
-#     #if LULESH_SHOW_PROGRESS
-#      if (myRank == 0)
-# 	 printf("cycle = %d, time = %e, dt=%e\n", its+1, double(locDom->time_h), double(locDom->deltatime_h) ) ;
-#     #endif
-#     its++;
-#     if (its == num_iters) break;
-#   }
+start = getWtime(prob.comm)
+while domain.time_h < domain.stoptime
+    # this has been moved after computation of volume forces to hide launch latencies
+    # TimeIncrement(locDom)
+    lagrangeLeapFrog(domain)
+    # checkErrors(domain, its, myRank)
+    if getMyRank(prob.comm) == 0
+        @printf("cycle = %d, time = %e, dt=%e\n", its+1, domain.time_h, domain.deltatime_h)
+    end
+    global its += 1
+    # if its == num_iters
+        break
+    # end
+end
 
 #   // make sure GPU finished its work
 #   cudaDeviceSynchronize();
 
-# // Use reduced max elapsed time
-#    double elapsed_time;
-# #if USE_MPI
-#    elapsed_time = MPI_Wtime() - start;
-# #else
-#    timeval end;
-#    gettimeofday(&end, NULL) ;
-#    elapsed_time = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec))/1000000 ;
-# #endif
-
-#    double elapsed_timeG;
-# #if USE_MPI
-#    MPI_Reduce(&elapsed_time, &elapsed_timeG, 1, MPI_DOUBLE,
-#               MPI_MAX, 0, MPI_COMM_WORLD);
-# #else
-#    elapsed_timeG = elapsed_time;
-# #endif
+# Use reduced max elapsed time
+elapsed_time = getWtime(prob.comm) - start
+elapsed_timeG = comm_max(elapsed_time, prob.comm)
 
 #   cudaProfilerStop();
 
@@ -152,9 +132,4 @@ locDom = NewDomain(prob)
 # #endif
 #   cudaDeviceReset();
 
-# #if USE_MPI
-#    MPI_Finalize() ;
-# #endif
-
-#   return 0 ;
-# }
+MPI.Finalize()

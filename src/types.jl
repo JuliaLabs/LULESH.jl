@@ -159,10 +159,10 @@
     maxEdgeSize::IndexT
 
     numElem::IndexT
-    padded_numElem::IndexT
+    # padded_numElem::IndexT
 
     numNode::IndexT
-    padded_numNode::IndexT
+    # padded_numNode::IndexT
 
     numSymmX::IndexT
     numSymmY::IndexT
