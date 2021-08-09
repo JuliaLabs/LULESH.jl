@@ -1,10 +1,26 @@
-function printUsage()
-    @printf("Usage: \n")
-    @printf("Unstructured grid:  %s -u <file.lmesh> \n", PROGRAM_FILE)
-    @printf("Structured grid:    %s -s numEdgeElems \n", PROGRAM_FILE)
-    @printf("\nExamples:\n")
-    @printf("%s -s 45\n", PROGRAM_FILE)
-    @printf("%s -u sedov15oct.lmesh\n", PROGRAM_FILE)
+using ArgParse
+
+function parse_cmd()
+    s = ArgParseSettings()
+
+    @add_arg_table! s begin
+        "-s"
+            help = "Structured mesh"
+            action = :store_true
+        "--mpi"
+            help = "Enable MPI"
+            action = :store_true
+        "N"
+            help = "Number of elements in each direction"
+            arg_type = Int
+            default = 45
+        "num_iters"
+            help = "Number of iterations to run"
+            arg_type = Int
+            default = -1
+    end
+
+    return parse_args(s)
 end
 
 function getCacheCoherencePad(::T) where T
