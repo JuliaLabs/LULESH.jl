@@ -49,11 +49,9 @@ function InitMeshDecomp(comm)
     numRanks = getNumRanks(comm)
     myRank = getMyRank(comm)
     testProcs = floor(cbrt(numRanks+0.5))
-    @show testProcs, numRanks
     if (testProcs*testProcs*testProcs != numRanks)
         error("Num processors must be a cube of an integer (1, 8, 27, ...)")
     end
-    @show typeof(testProcs)
     # TODO This is not good for the padding
     if (MAX_FIELDS_PER_MPI_COMM > getCacheCoherencePad(testProcs))
         error("corner element comm buffers too small. MAX_FIELDS_PER_MPI_COMM > CACHE_COHERENCE_PAD_REAL ($MAX_FIELDS_PER_MPI_COMM > $(getCacheCoherencePad(testProcs))")
@@ -75,7 +73,6 @@ function InitMeshDecomp(comm)
       myDom = remainder*( 1+ (div(dx*dy*dz, numRanks))) +
          (myRank - remainder)*(div(dx*dy*dz, numRanks))
     end
-   @show typeof(myDom)
    col = myDom % dx
    row = div(myDom, dx) % dy
    plane = div(myDom, (dx*dy))

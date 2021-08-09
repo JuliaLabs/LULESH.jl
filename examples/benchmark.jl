@@ -48,8 +48,6 @@ function main(nx, structured, num_iters, mpi, cuda)
         MPI.Barrier()
     end
 
-    @show domain.time_h
-    @show domain.stoptime
     if getMyRank(prob.comm) == 0
         if (structured)
             @printf("Running until t=%f, Problem size=%dx%dx%d\n", domain.stoptime, nx, nx, nx)
@@ -73,7 +71,7 @@ function main(nx, structured, num_iters, mpi, cuda)
         if getMyRank(prob.comm) == 0
             @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time_h, domain.deltatime_h)
         end
-        if domain.cycle == num_iters
+        if domain.cycle >= num_iters
             break
         end
     end

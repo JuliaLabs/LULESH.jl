@@ -17,7 +17,7 @@ function parse_cmd()
         "num_iters"
             help = "Number of iterations to run"
             arg_type = Int
-            default = -1
+            default = 10
     end
 
     return parse_args(s)

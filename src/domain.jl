@@ -115,8 +115,6 @@ end
 
 function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y_h, z_h, nodelist_h)
     meshEdgeElems = domain.m_tp*nx ;
-    @show edgeElems
-    @show meshEdgeElems
 
     resize!(x_h, domNodes)
     resize!(y_h, domNodes)
@@ -147,7 +145,6 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y
     copyto!(domain.x, x_h)
     copyto!(domain.y, y_h)
     copyto!(domain.z, z_h)
-    @show domElems
     resize!(nodelist_h, domElems*8);
 
     # embed hexehedral elements in nodal point lattice
@@ -172,12 +169,6 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y
         end
     nidx+=edgeNodes
     end
-    @show nodelist_h[2]
-    @show edgeElems
-    @show edgeNodes
-    @show length(nodelist_h)
-    @show minimum(nodelist_h)
-    @show maximum(nodelist_h)
     copyto!(domain.nodelist, nodelist_h)
 end
 
@@ -741,7 +732,7 @@ function Domain(prob::LuleshProblem)
         y_local = Vector{prob.floattype}(undef, 8)
         z_local = Vector{prob.floattype}(undef, 8)
         for lnode in 0:7
-            gnode = nodelist_h[lnode*domElems+i]
+            gnode = nodelist_h[(i-1)*8+lnode+1]
             x_local[lnode+1] = x_h[gnode]
             y_local[lnode+1] = y_h[gnode]
             z_local[lnode+1] = z_h[gnode]
@@ -755,7 +746,6 @@ function Domain(prob::LuleshProblem)
             nodalMass_h[gnode] += volume / 8.0
         end
     end
-    @show volo_h
 
     copyto!(domain.nodalMass, nodalMass_h)
     copyto!(domain.volo, volo_h)
@@ -796,8 +786,6 @@ end
 
 function timeIncrement!(domain::Domain)
     targetdt = domain.stoptime - domain.time_h
-    @show domain.deltatime_h
-    # @show domain.deltatime
     if domain.dtfixed <= 0.0 && domain.cycle != 0
         olddt = domain.deltatime_h
 
@@ -834,7 +822,6 @@ function timeIncrement!(domain::Domain)
     if targetdt < domain.deltatime_h
         domain.deltatime_h = targetdt
     end
-    @show domain.deltatime_h
     domain.time_h += domain.deltatime_h
     domain.cycle += 1
 end
@@ -3011,10 +2998,8 @@ function calcCourantConstraintForElems(domain::Domain)
     # Don't try to register a time constraint if none of the elements
     # were active
     if courant_elem != -1
-        domain.dtcourant = dtcourant
         domain.dtcourant_h = dtcourant
     end
-    @show domain.dtcourant_h
 
     return nothing
 end
@@ -3054,7 +3039,6 @@ function calcHydroConstraintForElems(domain::Domain)
         domain.dthydro = dthydro
         domain.dthydro_h = dthydro
     end
-    @show domain.dthydro_h
     return nothing
 end
 
