@@ -40,6 +40,7 @@ function main(nx, structured, num_iters, mpi, cuda)
     shadowDomain = Domain(prob)
 
     if mpi
+        error("MPI not yet implemented")
         boundary_exchange!(domain)
     end
 

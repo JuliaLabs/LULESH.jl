@@ -1105,7 +1105,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
     fy_elem = T(undef, numElem8)
     fz_elem = T(undef, numElem8)
     # FIXIT. This has to be device type
-    B = Matrix(undef, 8, 3)
+    B = Matrix{T}(undef, 8, 3)
     for k in 1:domain.numElem
         for lnode in 1:8
             # INDEXING
