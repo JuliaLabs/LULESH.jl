@@ -98,21 +98,19 @@ if getMyRank(prob.comm) == 0
     end
 end
 # timestep to solution
-its = 0
 #   cudaProfilerStart();
 start = getWtime(prob.comm)
 while domain.time_h < domain.stoptime
     # this has been moved after computation of volume forces to hide launch latencies
-    # TimeIncrement(locDom)
+    timeIncrement!(domain)
     lagrangeLeapFrog(domain)
     # checkErrors(domain, its, myRank)
     if getMyRank(prob.comm) == 0
-        @printf("cycle = %d, time = %e, dt=%e\n", its+1, domain.time_h, domain.deltatime_h)
+        @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time_h, domain.deltatime_h)
     end
-    global its += 1
-    # if its == num_iters
+    if domain.cycle == num_iters
         break
-    # end
+    end
 end
 
 #   // make sure GPU finished its work
