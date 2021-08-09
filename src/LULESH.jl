@@ -30,7 +30,6 @@ struct LuleshProblem
     floattype
     comm::Union{MPI.Comm, Nothing}
     function LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
-        !MPI.Initialized() && MPI.Init()
         col, row, plane, side = InitMeshDecomp(comm)
         return new(num_iters, structured, nx, nr, balance, cost, col, row, plane, side, devicetype, floattype, comm)
     end

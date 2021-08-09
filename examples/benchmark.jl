@@ -12,7 +12,7 @@ function main(nx, structured, num_iters, mpi)
     floattype = Float64
 
     if mpi
-        MPI.Init()
+        !MPI.Initialized() && MPI.Init()
         comm = MPI.COMM_WORLD
     else
         comm = nothing
