@@ -2926,7 +2926,7 @@ function lagrangeElements(domain::Domain)
 
     applyMaterialPropertiesForElems(domain)
 
-    updateVolumesForElems(domain)
+    # updateVolumesForElems(domain)
 
 end
 
@@ -2952,7 +2952,7 @@ function calcCourantConstraintForElems(domain::Domain)
 
         if domain.vdov[indx] < 0.0
 
-        dtf = d(tf + qqc2 * domain.arealg[indx] * domain.arealg[indx]
+        dtf = (dtf + qqc2 * domain.arealg[indx] * domain.arealg[indx]
                     * domain.vdov[indx]* domain.vdov[indx])
         end
 
@@ -3011,7 +3011,7 @@ function calcHydroConstraintForElems(domain::Domain)
         end
     end
 
-    if dthydro_per_thread[i] < dthydro
+    if dthydro_per_thread < dthydro
       dthydro = dthydro_per_thread
       hydro_elem =  hydro_elem_per_thread
     end

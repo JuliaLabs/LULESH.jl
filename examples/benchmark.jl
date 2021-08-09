@@ -2,6 +2,7 @@ using LULESH
 import CUDA
 using MPI
 using Printf
+using Enzyme
 
 function main(nx, structured, num_iters, mpi, cuda)
     # TODO: change default nr to 11
@@ -36,6 +37,7 @@ function main(nx, structured, num_iters, mpi, cuda)
     # TODO: setup communication buffers
 
     domain = Domain(prob)
+    shadowDomain = Domain(prob)
 
     if mpi
         boundary_exchange!(domain)
