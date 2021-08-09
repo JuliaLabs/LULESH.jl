@@ -1,5 +1,4 @@
 using LULESH
-import CUDA
 using MPI
 using Printf
 using Enzyme
@@ -12,7 +11,8 @@ function main(nx, structured, num_iters, mpi, cuda)
     floattype = Float64
 
     if cuda
-        devicetype = CUDA.CuArray
+        # devicetype = CUDA.CuArray
+        error("CUDA not yet supported")
     else
         devicetype = Vector
     end
@@ -40,6 +40,7 @@ function main(nx, structured, num_iters, mpi, cuda)
     shadowDomain = Domain(prob)
 
     if mpi
+        error("MPI not yet implemented")
         boundary_exchange!(domain)
     end
 

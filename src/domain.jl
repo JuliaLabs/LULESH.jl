@@ -763,11 +763,11 @@ function Domain(prob::LuleshProblem)
         # Dump into the first zone (which we know is in the corner)
         # of the domain that sits at the origin
         # TODO This only works for CUDA
-        CUDA.@allowscalar domain.e[1] = einit;
+        domain.e[1] = einit;
     end
 
     # set initial deltatime base on analytic CFL calculation
-    CUDA.@allowscalar domain.deltatime_h = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
+    domain.deltatime_h = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
 
     domain.cost = cost
     resize!(domain.regNumList, domain.numElem)  # material indexset
@@ -1092,7 +1092,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
     fy_elem = T(undef, numElem8)
     fz_elem = T(undef, numElem8)
     # FIXIT. This has to be device type
-    B = Matrix(undef, 8, 3)
+    B = Matrix{eltype(T)}(undef, 8, 3)
     for k in 1:domain.numElem
         for lnode in 1:8
             # INDEXING
