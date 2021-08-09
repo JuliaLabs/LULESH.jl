@@ -3,6 +3,9 @@ using MPI
 using Printf
 using Enzyme
 
+Enzyme.API.printperf!(true)
+Enzyme.API.printall!(true)
+
 function main(nx, structured, num_iters, mpi, cuda)
     # TODO: change default nr to 11
     nr = 1
@@ -73,7 +76,8 @@ function main(nx, structured, num_iters, mpi, cuda)
     while domain.time < domain.stoptime
         # this has been moved after computation of volume forces to hide launch latencies
         timeIncrement!(domain)
-        lagrangeLeapFrog(domain)
+        Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+        # lagrangeLeapFrog(domain)
         # checkErrors(domain, its, myRank)
         if getMyRank(prob.comm) == 0
             @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time, domain.deltatime)
