@@ -2984,7 +2984,7 @@ function calcCourantConstraintForElems(domain::Domain)
 
         if domain.vdov[indx] < 0.0
 
-        dtf = d(tf + qqc2 * domain.arealg[indx] * domain.arealg[indx]
+        dtf = (dtf + qqc2 * domain.arealg[indx] * domain.arealg[indx]
                     * domain.vdov[indx]* domain.vdov[indx])
         end
 
