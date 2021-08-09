@@ -1,15 +1,20 @@
-using CUDA
 using LULESH
+import CUDA
 using MPI
 using Printf
 
-function main(nx, structured, num_iters, mpi)
+function main(nx, structured, num_iters, mpi, cuda)
     # TODO: change default nr to 11
     nr = 1
     balance = 1
     cost = 1
-    devicetype = Vector
     floattype = Float64
+
+    if cuda
+        devicetype = CUDA.CuArray
+    else
+        devicetype = Vector
+    end
 
     if mpi
         !MPI.Initialized() && MPI.Init()
@@ -17,59 +22,29 @@ function main(nx, structured, num_iters, mpi)
     else
         comm = nothing
     end
+
     prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
 
-    #   Int_t numRanks ;
-    #   Int_t myRank ;
-
-    # #if USE_MPI
-    #   Domain_member fieldData ;
-
-    #   MPI_Init(&argc, &argv) ;
-    #   MPI_Comm_size(MPI_COMM_WORLD, &numRanks) ;
-    #   MPI_Comm_rank(MPI_COMM_WORLD, &myRank) ;
-    # #else
-    #   numRanks = 1;
-    #   myRank = 0;
-    # #endif
-
-    #   cuda_init(myRank);
-
-
-    #   Domain *locDom ;
+    if comm !== nothing && cuda
+        local_comm = MPI.Comm_split_type(comm, MPI.MPI_COMM_TYPE_SHARED, MPI.Comm_rank(comm))
+        @assert MPI.Comm_size(local_comm) <= length(CUDA.devices())
+        CUDA.device!(MPI.Comm_rank(local_comm))
+    end
 
     # Set up the mesh and decompose. Assumes regular cubes for now
-
-
     # TODO: modify this constructor to account for new fields
     # TODO: setup communication buffers
 
     domain = Domain(prob)
 
-    # #if USE_MPI
-    #    // copy to the host for mpi transfer
-    #    locDom->h_nodalMass = locDom->nodalMass;
+    if mpi
+        boundary_exchange!(domain)
+    end
 
-    #    fieldData = &Domain::get_nodalMass;
-
-    #    // Initial domain boundary communication
-    #    CommRecv(*locDom, MSG_COMM_SBN, 1,
-    #             locDom->sizeX + 1, locDom->sizeY + 1, locDom->sizeZ + 1,
-    #             true, false) ;
-    #    CommSend(*locDom, MSG_COMM_SBN, 1, &fieldData,
-    #             locDom->sizeX + 1, locDom->sizeY + 1, locDom->sizeZ + 1,
-    #             true, false) ;
-    #    CommSBN(*locDom, 1, &fieldData) ;
-
-    #    // copy back to the device
-    #    locDom->nodalMass = locDom->h_nodalMass;
-
-    #    // End initialization
-    #    MPI_Barrier(MPI_COMM_WORLD);
-    # #endif
-
-    #   cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
-    #   cudaDeviceSetLimit(cudaLimitMallocHeapSize,1024*1024*1024);
+    # End initialization
+    if mpi
+        MPI.Barrier()
+    end
 
     @show domain.time_h
     @show domain.stoptime
@@ -81,8 +56,12 @@ function main(nx, structured, num_iters, mpi)
             @warn "Unstructured setup not supported"
         end
     end
+
+    if cuda
+        CUDA.Profile.start()
+    end
+
     # timestep to solution
-    #   cudaProfilerStart();
     start = getWtime(prob.comm)
     while domain.time_h < domain.stoptime
         # this has been moved after computation of volume forces to hide launch latencies
@@ -97,22 +76,22 @@ function main(nx, structured, num_iters, mpi)
         end
     end
 
-    #   // make sure GPU finished its work
-    #   cudaDeviceSynchronize();
+    # make sure GPU finished its work
+    if cuda
+        CUDA.synchronize()
+    end
 
     # Use reduced max elapsed time
     elapsed_time = getWtime(prob.comm) - start
     elapsed_timeG = comm_max(elapsed_time, prob.comm)
 
-    #   cudaProfilerStop();
+    if cuda
+        CUDA.Profile.stop()
+    end
 
     #   if (myRank == 0)
     #     VerifyAndWriteFinalOutput(elapsed_timeG, *locDom, its, nx, numRanks, structured);
 
-    # #ifdef SAMI
-    #   DumpDomain(locDom) ;
-    # #endif
-    #   cudaDeviceReset();
     if mpi
         MPI.Finalize()
     end
@@ -126,5 +105,5 @@ if !isinteractive()
     structured = args["s"]
     num_iters = args["num_iters"]
     mpi = args["mpi"]
-    main(nx, structured, num_iters, mpi)
+    main(nx, structured, num_iters, mpi, false)
 end
