@@ -115,6 +115,8 @@ end
 
 function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y_h, z_h, nodelist_h)
     meshEdgeElems = domain.m_tp*nx ;
+    @show edgeElems
+    @show meshEdgeElems
 
     resize!(x_h, domNodes)
     resize!(y_h, domNodes)
@@ -195,7 +197,8 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
        lxim_h[i]   = i-1
        lxip_h[i-1] = i
     end
-    lxip_h[domElems-1] = domElems-1
+    # MAYBE
+    lxip_h[domElems] = domElems-1
 
     # INDEXING
     for i in 1:edgeElems
@@ -752,6 +755,7 @@ function Domain(prob::LuleshProblem)
             nodalMass_h[gnode] += volume / 8.0
         end
     end
+    @show volo_h
 
     copyto!(domain.nodalMass, nodalMass_h)
     copyto!(domain.volo, volo_h)
@@ -792,6 +796,8 @@ end
 
 function timeIncrement!(domain::Domain)
     targetdt = domain.stoptime - domain.time_h
+    @show domain.deltatime_h
+    # @show domain.deltatime
     if domain.dtfixed <= 0.0 && domain.cycle != 0
         olddt = domain.deltatime_h
 
@@ -828,7 +834,7 @@ function timeIncrement!(domain::Domain)
     if targetdt < domain.deltatime_h
         domain.deltatime_h = targetdt
     end
-
+    @show domain.deltatime_h
     domain.time_h += domain.deltatime_h
     domain.cycle += 1
 end
@@ -2354,7 +2360,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
 
         case = bcMask & XI_M
         if case == 0
-            delvm = domain.delv_xi[domain.lxim[i]]
+            # MAYBE
+            delvm = domain.delv_xi[domain.lxim[i]+1]
         elseif case == XI_M_SYMM
             delvm = domain.delv_xi[i]
         elseif case == XI_M_FREE
@@ -2758,11 +2765,11 @@ function evalEOSForElems(domain::Domain, vnewc, length)
     ss4o3 = domain.ss4o3
     q_cut = domain.q_cut
 
-    eosvmax = domain.m_eosvmax
-    eosvmin = domain.m_eosvmin
-    pmin    = domain.m_pmin
-    emin    = domain.m_emin
-    rho0    = domain.m_refdens
+    eosvmax = domain.eosvmax
+    eosvmin = domain.eosvmin
+    pmin    = domain.pmin
+    emin    = domain.emin
+    rho0    = domain.refdens
 
     e_old = Vector{Float64}(undef, length)
     delvc = Vector{Float64}(undef, length)
@@ -2787,7 +2794,7 @@ function evalEOSForElems(domain::Domain, vnewc, length)
 
     for i in 1:length
         zidx = domain.matElemlist[i]
-        delvc[i] = domain.delvc[zidx]
+        delvc[i] = domain.delv[zidx]
     end
 
     for i in 1:length
@@ -2911,6 +2918,23 @@ function applyMaterialPropertiesForElems(domain::Domain)
     end
 end
 
+function updateVolumesForElems(domain::Domain)
+    numElem = domain.numElem
+
+    if numElem != 0
+        v_cut = domain.v_cut
+
+        for i in 1:numElem
+        tmpV = domain.vnew[i]
+
+        if abs(tmpV - 1.0) < v_cut
+            tmpV = 1.0
+        end
+        domain.v[i] = tmpV
+        end
+    end
+end
+
 function lagrangeElements(domain::Domain)
 
     delt = domain.deltatime_h
@@ -2919,6 +2943,14 @@ function lagrangeElements(domain::Domain)
     domain.dyy = Vector{Float64}(undef, domain.numElem)
     domain.dzz = Vector{Float64}(undef, domain.numElem)
 
+    domain.delx_xi = Vector{Float64}(undef, domain.numElem)
+    domain.delx_eta = Vector{Float64}(undef, domain.numElem)
+    domain.delx_zeta = Vector{Float64}(undef, domain.numElem)
+
+    domain.delv_xi = Vector{Float64}(undef, domain.numElem)
+    domain.delv_eta = Vector{Float64}(undef, domain.numElem)
+    domain.delv_zeta = Vector{Float64}(undef, domain.numElem)
+
     calcLagrangeElements(domain, delt)
 
     # Calculate Q.  (Monotonic q option requires communication)
@@ -2926,7 +2958,7 @@ function lagrangeElements(domain::Domain)
 
     applyMaterialPropertiesForElems(domain)
 
-    updateVolumesForElems(domain)
+    # updateVolumesForElems(domain)
 
 end
 
@@ -2980,7 +3012,9 @@ function calcCourantConstraintForElems(domain::Domain)
     # were active
     if courant_elem != -1
         domain.dtcourant = dtcourant
+        domain.dtcourant_h = dtcourant
     end
+    @show domain.dtcourant_h
 
     return nothing
 end
@@ -3002,23 +3036,25 @@ function calcHydroConstraintForElems(domain::Domain)
         indx = domain.matElemlist[i]
 
         if domain.vdov[indx] != 0.0
-        dtdvov = dvovmax / (abs(domain.vdov[indx])+1.e-20)
+            dtdvov = dvovmax / (abs(domain.vdov[indx])+1.e-20)
 
-        if dthydro_per_thread > dtdvov
-            dthydro_per_thread = dtdvov
-            hydro_elem_per_thread = indx
-        end
+            if dthydro_per_thread > dtdvov
+                dthydro_per_thread = dtdvov
+                hydro_elem_per_thread = indx
+            end
         end
     end
 
-    if dthydro_per_thread[i] < dthydro
+    if dthydro_per_thread < dthydro
       dthydro = dthydro_per_thread
       hydro_elem =  hydro_elem_per_thread
     end
 
     if hydro_elem != -1
         domain.dthydro = dthydro
+        domain.dthydro_h = dthydro
     end
+    @show domain.dthydro_h
     return nothing
 end
 

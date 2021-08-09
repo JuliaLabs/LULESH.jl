@@ -25,7 +25,7 @@ structured = true
 @show structured
 # assume cube subdomain geometry for now (nx)
 nx = parse(IndexT, ARGS[2])
-# nx = 45
+nx = 2
 # TODO: change default nr to 11
 nr = 1
 balance = 1
@@ -108,7 +108,7 @@ while domain.time_h < domain.stoptime
     if getMyRank(prob.comm) == 0
         @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time_h, domain.deltatime_h)
     end
-    if domain.cycle == num_iters
+    if domain.cycle >= num_iters
         break
     end
 end
