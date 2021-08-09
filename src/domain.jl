@@ -773,11 +773,11 @@ function Domain(prob::LuleshProblem)
         # Dump into the first zone (which we know is in the corner)
         # of the domain that sits at the origin
         # TODO This only works for CUDA
-        CUDA.@allowscalar domain.e[1] = einit;
+        domain.e[1] = einit;
     end
 
     # set initial deltatime base on analytic CFL calculation
-    CUDA.@allowscalar domain.deltatime_h = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
+    domain.deltatime_h = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
 
     domain.cost = cost
     resize!(domain.regNumList, domain.numElem)  # material indexset
