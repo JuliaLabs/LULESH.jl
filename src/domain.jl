@@ -1988,9 +1988,9 @@ function calcElemShapeFunctionDerivatives( x, y, z,
     b[3,3] =      cjzxi  +  cjzet  -  cjzze
     b[4,3] =   -  cjzxi  +  cjzet  -  cjzze
     b[5,3] = -b[3,3]
-    b[6,3] = -b[3,4]
-    b[7,3] = -b[3,1]
-    b[8,3] = -b[3,2]
+    b[6,3] = -b[4,3]
+    b[7,3] = -b[1,3]
+    b[8,3] = -b[2,3]
 
     # calculate jacobian determinant (volume)
     el_volume = 8.0 * ( fjxet * cjxet + fjyet * cjyet + fjzet * cjzet)
@@ -2078,11 +2078,11 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
 
         # get nodal coordinates from global arrays and copy into local arrays
         for lnode in 1:8
-        # INDEXING
-        gnode = nodelist[(k-1)*8 + lnode]
-        x_local[lnode] = domain.x[gnode]
-        y_local[lnode] = domain.y[gnode]
-        z_local[lnode] = domain.z[gnode]
+            # INDEXING
+            gnode = nodelist[(k-1)*8 + lnode]
+            x_local[lnode] = domain.x[gnode]
+            y_local[lnode] = domain.y[gnode]
+            z_local[lnode] = domain.z[gnode]
         end
 
         # volume calculations
@@ -2110,10 +2110,10 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         y_local .= y_local .- dt2 .* yd_local
         z_local .= z_local .- dt2 .* zd_local
 
-        calcElemShapeFunctionDerivatives( x_local, y_local, z_local, 
+        calcElemShapeFunctionDerivatives( x_local, y_local, z_local,
                                             B, detJ )
 
-        calcElemVelocityGradient( xd_local, yd_local, zd_local, 
+        calcElemVelocityGradient( xd_local, yd_local, zd_local,
                                         B, detJ, D )
 
         # put velocity gradient quantities into their global arrays.
@@ -2132,19 +2132,19 @@ function calcLagrangeElements(domain, delt)
 
         for k in 1:numElem
         # calc strain rate and apply as constraint (only done in FB element)
-        vdov = domain.dxx[k] + domain.dyy[k] + domain.dzz[k]
-        vdovthird = vdov/3.0
+            vdov = domain.dxx[k] + domain.dyy[k] + domain.dzz[k]
+            vdovthird = vdov/3.0
 
-        # make the rate of deformation tensor deviatoric
-        domain.vdov[k] = vdov
-        domain.dxx[k] = domain.dxx[k] - vdovthird
-        domain.dyy[k] = domain.dyy[k] - vdovthird
-        domain.dzz[k] = domain.dzz[k] - vdovthird
+            # make the rate of deformation tensor deviatoric
+            domain.vdov[k] = vdov
+            domain.dxx[k] = domain.dxx[k] - vdovthird
+            domain.dyy[k] = domain.dyy[k] - vdovthird
+            domain.dzz[k] = domain.dzz[k] - vdovthird
 
-        # See if any volumes are negative, and take appropriate action.
-        if domain.vnew[k] <= 0.0
-            error("Volume Error")
-        end
+            # See if any volumes are negative, and take appropriate action.
+            if domain.vnew[k] <= 0.0
+                error("Volume Error")
+            end
         end
     end
 end
@@ -2500,7 +2500,7 @@ function calcMonotonicQForElems(domain::Domain)
     if elength > 0
         qlc_monoq = domain.qlc_monoq
         qqc_monoq = domain.qqc_monoq
-        calcMonotonicQRegionForElems( qlc_monoq, qqc_monoq,
+        calcMonotonicQRegionForElems(domain, qlc_monoq, qqc_monoq,
                                         monoq_limiter_mult,
                                         monoq_max_slope,
                                         ptiny, elength )
@@ -2541,21 +2541,452 @@ function calcQForElems(domain::Domain)
     end
 end
 
+function calcPressureForElems(domain::Domain, p_new, bvc,
+                                 pbvc, e_old,
+                                 compression, vnewc,
+                                 pmin,
+                                 p_cut,eosvmax,
+                                 length              )
 
+    c1s = 2.0/3.0
+
+    for i in 1:length
+        bvc[i] = c1s * (compression[i] + 1.0)
+        pbvc[i] = c1s
+    end
+
+    for i in 1:length
+        p_new[i] = bvc[i] * e_old[i]
+
+        if abs(p_new[i]) < p_cut
+            p_new[i] = 0.0
+        end
+
+        if vnewc[i] >= eosvmax # impossible condition here?
+            p_new[i] = 0.0
+        end
+
+        if p_new[i] < pmin
+            p_new[i] = pmin
+        end
+    end
+end
+
+
+function calcEnergyForElems(domain::Domain, p_new,  e_new,  q_new,
+                                bvc,  pbvc,
+                                p_old,  e_old,  q_old,
+                                compression,  compHalfStep,
+                                vnewc,  work,  delvc,  pmin,
+                                p_cut,   e_cut,  q_cut,  emin,
+                                qq,  ql,
+                                rho0,
+                                eosvmax,
+                                length                          )
+
+    TINY1 = 0.111111e-36
+    TINY3 = 0.333333e-18
+    SIXTH = 1.0 / 6.0
+
+
+    pHalfStep = Vector{Float64}(undef, length)
+
+    for i in 1:length
+        e_new[i] = e_old[i] - 0.5 * delvc[i] * (p_old[i] + q_old[i]) + 0.5 * work[i]
+
+        if e_new[i]  < emin
+            e_new[i] = emin
+        end
+    end
+
+    calcPressureForElems(domain, pHalfStep, bvc, pbvc, e_new, compHalfStep,
+                            vnewc, pmin, p_cut, eosvmax, length)
+    for i in 1:length
+        vhalf = 1.0 / 1.0 + compHalfStep[i]
+
+        if  delvc[i] > 0.0
+        #      q_new(i) /* = qq(i) = ql(i) */ = Real_t(0.) ;
+            q_new[i] = 0.0
+        else
+            ssc = (( pbvc[i] * e_new[i]
+                + vhalf * vhalf * bvc[i] * pHalfStep[i] ) / rho0)
+            if ssc <= TINY1
+                ssc = TINY3
+            else
+                ssc = sqrt(ssc)
+            end
+
+            q_new[i] = (ssc*ql[i] + qq[i])
+        end
+
+        e_new[i] = (e_new[i] + 0.5 * delvc[i] * (  3.0*(p_old[i]     + q_old[i])
+            - 4.0*(pHalfStep[i] + q_new[i])))
+    end
+
+    for i in 1:length
+        e_new[i] = e_new[i] + 0.5 * work[i]
+        if abs(e_new[i]) < e_cut
+            e_new[i] = 0.0
+        end
+        if e_new[i]  < emin
+            e_new[i] = emin
+        end
+    end
+
+    calcPressureForElems(domain, p_new, bvc, pbvc, e_new, compression,
+                            vnewc, pmin, p_cut, eosvmax, length)
+
+    for i in 1:length
+        if delvc[i] > 0.0
+            q_tilde = 0.0
+        else
+            ssc = ( pbvc[i] * e_new[i]
+                + vnewc[i] * vnewc[i] * bvc[i] * p_new[i] ) / rho0
+
+            if ssc <= TINY1
+                ssc = TINY3
+            else
+                ssc = sqrt(ssc)
+            end
+
+            q_tilde = (ssc*ql[i] + qq[i])
+        end
+
+        e_new[i] = (e_new[i] - (  7.0*(p_old[i]     + q_old[i])
+                            -    8.0*(pHalfStep[i] + q_new[i])
+                            + (p_new[i] + q_tilde)) * delvc[i]*SIXTH)
+
+        if abs(e_new[i]) < e_cut
+            e_new[i] = 0.0
+        end
+        if e_new[i]  < emin
+            e_new[i] = emin
+        end
+    end
+
+    calcPressureForElems(domain, p_new, bvc, pbvc, e_new, compression,
+                            vnewc, pmin, p_cut, eosvmax, length)
+
+    for i in 1:length
+
+        if delvc[i] <= 0.0
+            ssc = (( pbvc[i] * e_new[i]
+                + vnewc[i] * vnewc[i] * bvc[i] * p_new[i] ) / rho0)
+
+            if ssc <= TINY1
+                ssc = TINY3
+            else
+                ssc = sqrt(ssc)
+            end
+
+            q_new[i] = (ssc*ql[i] + qq[i])
+
+            if abs(q_new[i]) < q_cut
+                q_new[i] = 0.0
+            end
+        end
+    end
+end
+
+function calcSoundSpeedForElems(domain::Domain, vnewc,  rho0, enewc,
+                                  pnewc, pbvc,
+                                  bvc, ss4o3, nz       )
+    TINY1 = 0.111111e-36
+    TINY3 = 0.333333e-18
+
+    for i in 1:nz
+        iz = domain.matElemlist[i]
+        ssTmp = ((pbvc[i] * enewc[i] + vnewc[i] * vnewc[i] *
+                            bvc[i] * pnewc[i]) / rho0)
+        if ssTmp <= TINY1
+            ssTmp = TINY3
+        else
+            ssTmp = sqrt(ssTmp)
+        end
+        domain.ss[iz] = ssTmp
+    end
+end
+
+
+function evalEOSForElems(domain::Domain, vnewc, length)
+
+    e_cut = domain.e_cut
+    p_cut = domain.p_cut
+    ss4o3 = domain.ss4o3
+    q_cut = domain.q_cut
+
+    eosvmax = domain.m_eosvmax
+    eosvmin = domain.m_eosvmin
+    pmin    = domain.m_pmin
+    emin    = domain.m_emin
+    rho0    = domain.m_refdens
+
+    e_old = Vector{Float64}(undef, length)
+    delvc = Vector{Float64}(undef, length)
+    p_old = Vector{Float64}(undef, length)
+    q_old = Vector{Float64}(undef, length)
+    compression = Vector{Float64}(undef, length)
+    compHalfStep = Vector{Float64}(undef, length)
+    qq = Vector{Float64}(undef, length)
+    ql = Vector{Float64}(undef, length)
+    work = Vector{Float64}(undef, length)
+    p_new = Vector{Float64}(undef, length)
+    e_new = Vector{Float64}(undef, length)
+    q_new = Vector{Float64}(undef, length)
+    bvc = Vector{Float64}(undef, length)
+    pbvc = Vector{Float64}(undef, length)
+
+    # compress data, minimal set
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        e_old[i] = domain.e[zidx]
+    end
+
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        delvc[i] = domain.delvc[zidx]
+    end
+
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        p_old[i] = domain.p[zidx]
+    end
+
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        q_old[i] = domain.q[zidx]
+    end
+
+    for i in 1:length
+        compression[i] = 1.0 / vnewc[i] - 1.0
+        vchalf = vnewc[i] - delvc[i] * 0.5
+        compHalfStep[i] = (1.0 / vchalf) - 1.0
+    end
+
+    # Check for v > eosvmax or v < eosvmin
+    if eosvmin != 0.0
+        for i in 1:length
+            if vnewc[i] <= eosvmin  # impossible due to calling func?
+                compHalfStep[i] = compression[i]
+            end
+        end
+    end
+
+    if eosvmax != 0.0
+        for i in 1:length
+            if vnewc[i] >= eosvmax  # impossible due to calling func?
+                p_old[i]        = 0.0
+                compression[i]  = 0.0
+                compHalfStep[i] = 0.0
+            end
+        end
+    end
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        qq[i] = domain.qq[zidx]
+        ql[i] = domain.ql[zidx]
+        work[i] = 0.0
+    end
+
+    calcEnergyForElems(domain, p_new, e_new, q_new, bvc, pbvc,
+                            p_old, e_old,  q_old, compression,
+                            compHalfStep, vnewc, work,  delvc, pmin,
+                            p_cut, e_cut, q_cut, emin,
+                            qq, ql, rho0, eosvmax, length)
+
+
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        domain.p[zidx] = p_new[i]
+    end
+
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        domain.e[zidx] = e_new[i]
+    end
+
+    for i in 1:length
+        zidx = domain.matElemlist[i]
+        domain.q[zidx] = q_new[i]
+    end
+
+
+    calcSoundSpeedForElems(domain, vnewc, rho0, e_new, p_new,
+                                pbvc, bvc, ss4o3, length)
+end
+
+
+function applyMaterialPropertiesForElems(domain::Domain)
+
+    length = domain.numElem
+
+    if length != 0
+        #  Expose all of the variables needed for material evaluation
+        eosvmin = domain.eosvmin
+        eosvmax = domain.eosvmax
+        vnewc = Vector{Float64}(undef, length)
+
+        for i in 1:length
+            zn = domain.matElemlist[i]
+            vnewc[i] = domain.vnew[zn]
+        end
+
+        if eosvmin != 0.0
+            for i in 1:length
+                if vnewc[i] < eosvmin
+                    vnewc[i] = eosvmin
+                end
+            end
+        end
+
+        if eosvmax != 0.0
+            for i in 1:length
+                if vnewc[i] > eosvmax
+                    vnewc[i] = eosvmax
+                end
+            end
+        end
+
+        for i in 1:length
+            zn = domain.matElemlist[i]
+            vc = domain.v[zn]
+            if eosvmin != 0.0
+                if vc < eosvmin
+                    vc = eosvmin
+                end
+            end
+            if eosvmax != 0.0
+                if vc > eosvmax
+                    vc = eosvmax
+                end
+            end
+            if vc <= 0.0
+                error("Volume Error")
+            end
+        end
+        evalEOSForElems(domain::Domain, vnewc, length)
+    end
+end
 
 function lagrangeElements(domain::Domain)
 
-    delt = domain.deltatime_t
+    delt = domain.deltatime_h
+    domain.vnew = Vector{Float64}(undef, domain.numElem)
+    domain.dxx = Vector{Float64}(undef, domain.numElem)
+    domain.dyy = Vector{Float64}(undef, domain.numElem)
+    domain.dzz = Vector{Float64}(undef, domain.numElem)
 
     calcLagrangeElements(domain, delt)
 
     # Calculate Q.  (Monotonic q option requires communication)
     calcQForElems(domain)
 
-    # applyMaterialPropertiesForElems(domain)
+    applyMaterialPropertiesForElems(domain)
 
-    # updateVolumesForElems(domain)
+    updateVolumesForElems(domain)
 
+end
+
+function calcCourantConstraintForElems(domain::Domain)
+
+    dtcourant    = 1.0e+20
+    courant_elem = -1
+
+    qqc = domain.qqc
+    length = domain.numElem
+
+    qqc2 = 64.0 * qqc * qqc
+
+    # Rewritten OpenMP code to sequential code
+    courant_elem_per_thread = -1
+    dtcourant_per_thread =  1.0e+20
+
+
+    for i in 1:length
+        indx = domain.matElemlist[i]
+
+        dtf = domain.ss[indx] * domain.ss[indx]
+
+        if domain.vdov[indx] < 0.0
+
+        dtf = d(tf + qqc2 * domain.arealg[indx] * domain.arealg[indx]
+                    * domain.vdov[indx]* domain.vdov[indx])
+        end
+
+        dtf = sqrt(dtf)
+
+        dtf = domain.arealg[indx] / dtf
+
+        #  determine minimum timestep with its corresponding elem
+        if domain.vdov[indx] != 0.0
+            if dtf < dtcourant_per_thread
+
+                dtcourant_per_thread = dtf
+                courant_elem_per_thread = indx
+            end
+        end
+    end
+
+    if dtcourant_per_thread < dtcourant
+        dtcourant = dtcourant_per_thread
+        courant_elem =  courant_elem_per_thread
+    end
+
+
+    # Don't try to register a time constraint if none of the elements
+    # were active
+    if courant_elem != -1
+        domain.dtcourant = dtcourant
+    end
+
+    return nothing
+end
+
+
+function calcHydroConstraintForElems(domain::Domain)
+
+    dthydro = 1.0e+20
+    hydro_elem = -1
+    dvovmax = domain.dvovmax
+    length = domain.numElem
+
+    # Rewritten OpenMP code to sequential code
+
+    hydro_elem_per_thread = hydro_elem
+    dthydro_per_thread = dthydro
+
+    for i in 1:length
+        indx = domain.matElemlist[i]
+
+        if domain.vdov[indx] != 0.0
+        dtdvov = dvovmax / (abs(domain.vdov[indx])+1.e-20)
+
+        if dthydro_per_thread > dtdvov
+            dthydro_per_thread = dtdvov
+            hydro_elem_per_thread = indx
+        end
+        end
+    end
+
+    if dthydro_per_thread[i] < dthydro
+      dthydro = dthydro_per_thread
+      hydro_elem =  hydro_elem_per_thread
+    end
+
+    if hydro_elem != -1
+        domain.dthydro = dthydro
+    end
+    return nothing
+end
+
+
+
+function calcTimeConstraintsForElems(domain::Domain)
+  # evaluate time constraint
+  calcCourantConstraintForElems(domain::Domain)
+
+  # check hydro constraint
+  calcHydroConstraintForElems(domain::Domain)
 end
 
 
@@ -2563,12 +2994,13 @@ function lagrangeLeapFrog(domain::Domain)
 
    # calculate nodal forces, accelerations, velocities, positions, with
    # applied boundary conditions and slide surface considerations */
+   # Time increment
    lagrangeNodal(domain)
 
    # calculate element quantities (i.e. velocity gradient & q), and update
    # material states */
-   # LagrangeElements(domain)
+   lagrangeElements(domain)
 
-   # CalcTimeConstraintsForElems(domain)
+   calcTimeConstraintsForElems(domain)
    return nothing
 end

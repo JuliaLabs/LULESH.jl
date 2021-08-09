@@ -18,7 +18,12 @@ function calcElemVolume(
     x0, x1,x2, x3, x4, x5, x6, x7, y0, y1, y2, y3, y4, y5, y6, y7,
     z0, z1, z2, z3, z4, z5, z6, z7
 )
-    triple_product(x1, y1, z1, x2, y2, z2, x3, y3, z3) = ((x1)*((y2)*(z3) - (z2)*(y3)) + (x2)*((z1)*(y3) - (y1)*(z3)) + (x3)*((y1)*(z2) - (z1)*(y2)))
+    function triple_product(x1, y1, z1, x2, y2, z2, x3, y3, z3)
+        return (((x1)*((y2)*(z3) - (z2)*(y3)) + (x2)*((z1)*(y3)
+                  - (y1)*(z3)) + (x3)*((y1)*(z2) - (z1)*(y2))))
+    end
+    #((x1)*((y2)*(z3) - (z2)*(y3)) + (x2)*((z1)*(y3) - (y1)*(z3)) + (x3)*((y1)*(z2) - (z1)*(y2)))
+
     twelveth = 1.0/12.0
 
     dx61 = x6 - x1
@@ -87,7 +92,7 @@ function calcElemVolume(
             dz14 + dz25, dz61, dz50
         )
     )
-    volume *= twelveth;
+    volume *= twelveth
     return volume
 end
 
