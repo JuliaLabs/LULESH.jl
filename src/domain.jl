@@ -1849,6 +1849,714 @@ function lagrangeNodal(domain::Domain)
     return nothing
 end
 
+function areaFace( x0, x1, x2, x3,
+                   y0, y1, y2, y3,
+                   z0, z1, z2, z3  )
+
+  fx = (x2 - x0) - (x3 - x1)
+  fy = (y2 - y0) - (y3 - y1)
+  fz = (z2 - z0) - (z3 - z1)
+  gx = (x2 - x0) + (x3 - x1)
+  gy = (y2 - y0) + (y3 - y1)
+  gz = (z2 - z0) + (z3 - z1)
+
+  area = (fx * fx + fy * fy + fz * fz) *
+    (gx * gx + gy * gy + gz * gz) -
+    (fx * gx + fy * gy + fz * gz) *
+    (fx * gx + fy * gy + fz * gz)
+
+  return area
+end
+
+function calcElemCharacteristicLength( x, y, z, volume)
+
+    charLength = 0.0
+
+    a = areaFace(x[1],x[2],x[3],x[4],
+                y[1],y[2],y[3],y[4],
+                z[1],z[2],z[3],z[4])
+    charLength = max(a,charLength)
+
+    a = areaFace(x[5],x[6],x[7],x[8],
+                y[5],y[6],y[7],y[8],
+                z[5],z[6],z[7],z[8])
+    charLength = max(a,charLength)
+
+    a = areaFace(x[1],x[2],x[6],x[5],
+                y[1],y[2],y[6],y[5],
+                z[1],z[2],z[6],z[5])
+    charLength = max(a,charLength)
+
+    a = areaFace(x[2],x[3],x[7],x[6],
+                y[2],y[3],y[7],y[6],
+                z[2],z[3],z[7],z[6])
+    charLength = max(a,charLength)
+
+    a = areaFace(x[3],x[4],x[8],x[7],
+                y[3],y[4],y[8],y[7],
+                z[3],z[4],z[8],z[7])
+    charLength = max(a,charLength)
+
+    a = areaFace(x[4],x[1],x[5],x[8],
+                y[4],y[1],y[5],y[8],
+                z[4],z[1],z[5],z[8])
+    charLength = max(a,charLength)
+
+    charLength = 4.0 * volume / sqrt(charLength)
+
+    return charLength
+end
+
+function calcElemShapeFunctionDerivatives( x, y, z,
+                                             b,
+                                             el_volume   )
+    x0 = x[1]
+    x1 = x[2]
+    x2 = x[3]
+    x3 = x[4]
+    x4 = x[5]
+    x5 = x[6]
+    x6 = x[7]
+    x7 = x[8]
+
+    y0 = y[1]
+    y1 = y[2]
+    y2 = y[3]
+    y3 = y[4]
+    y4 = y[5]
+    y5 = y[6]
+    y6 = y[7]
+    y7 = y[8]
+
+    z0 = z[1]
+    z1 = z[2]
+    z2 = z[3]
+    z3 = z[4]
+    z4 = z[5]
+    z5 = z[6]
+    z6 = z[7]
+    z7 = z[8]
+
+    fjxxi = .125 * ( (x6-x0) + (x5-x3) - (x7-x1) - (x4-x2) )
+    fjxet = .125 * ( (x6-x0) - (x5-x3) + (x7-x1) - (x4-x2) )
+    fjxze = .125 * ( (x6-x0) + (x5-x3) + (x7-x1) + (x4-x2) )
+
+    fjyxi = .125 * ( (y6-y0) + (y5-y3) - (y7-y1) - (y4-y2) )
+    fjyet = .125 * ( (y6-y0) - (y5-y3) + (y7-y1) - (y4-y2) )
+    fjyze = .125 * ( (y6-y0) + (y5-y3) + (y7-y1) + (y4-y2) )
+
+    fjzxi = .125 * ( (z6-z0) + (z5-z3) - (z7-z1) - (z4-z2) )
+    fjzet = .125 * ( (z6-z0) - (z5-z3) + (z7-z1) - (z4-z2) )
+    fjzze = .125 * ( (z6-z0) + (z5-z3) + (z7-z1) + (z4-z2) )
+
+    # compute cofactors
+    cjxxi =    (fjyet * fjzze) - (fjzet * fjyze)
+    cjxet =  - (fjyxi * fjzze) + (fjzxi * fjyze)
+    cjxze =    (fjyxi * fjzet) - (fjzxi * fjyet)
+
+    cjyxi =  - (fjxet * fjzze) + (fjzet * fjxze)
+    cjyet =    (fjxxi * fjzze) - (fjzxi * fjxze)
+    cjyze =  - (fjxxi * fjzet) + (fjzxi * fjxet)
+
+    cjzxi =    (fjxet * fjyze) - (fjyet * fjxze)
+    cjzet =  - (fjxxi * fjyze) + (fjyxi * fjxze)
+    cjzze =    (fjxxi * fjyet) - (fjyxi * fjxet)
+
+    # calculate partials :
+    #     this need only be done for l = 0,1,2,3   since , by symmetry ,
+    #     (6,7,4,5) = - (0,1,2,3) .
+    b[1,1] =   -  cjxxi  -  cjxet  -  cjxze
+    b[2,1] =      cjxxi  -  cjxet  -  cjxze
+    b[3,1] =      cjxxi  +  cjxet  -  cjxze
+    b[4,1] =   -  cjxxi  +  cjxet  -  cjxze
+    b[5,1] = -b[3,1]
+    b[6,1] = -b[4,1]
+    b[7,1] = -b[1,1]
+    b[8,1] = -b[2,1]
+
+    b[1,2] =   -  cjyxi  -  cjyet  -  cjyze
+    b[2,2] =      cjyxi  -  cjyet  -  cjyze
+    b[3,2] =      cjyxi  +  cjyet  -  cjyze
+    b[4,2] =   -  cjyxi  +  cjyet  -  cjyze
+    b[5,2] = -b[3,2]
+    b[6,2] = -b[4,2]
+    b[7,2] = -b[1,2]
+    b[8,2] = -b[2,2]
+
+    b[1,3] =   -  cjzxi  -  cjzet  -  cjzze
+    b[2,3] =      cjzxi  -  cjzet  -  cjzze
+    b[3,3] =      cjzxi  +  cjzet  -  cjzze
+    b[4,3] =   -  cjzxi  +  cjzet  -  cjzze
+    b[5,3] = -b[3,3]
+    b[6,3] = -b[3,4]
+    b[7,3] = -b[3,1]
+    b[8,3] = -b[3,2]
+
+    # calculate jacobian determinant (volume)
+    el_volume = 8.0 * ( fjxet * cjxet + fjyet * cjyet + fjzet * cjzet)
+    return nothing
+end
+
+function calcElemVelocityGradient( xvel, yvel, zvel,
+                                      b, detJ, d )
+
+    inv_detJ = 1.0 / detJ
+    pfx = b[:,1]
+    pfy = b[:,2]
+    pfz = b[:,3]
+
+    d[1] = inv_detJ * (   pfx[1] * (xvel[1]-xvel[7])
+                        + pfx[2] * (xvel[2]-xvel[8])
+                        + pfx[3] * (xvel[3]-xvel[5])
+                        + pfx[4] * (xvel[4]-xvel[6]) )
+
+    d[2] = inv_detJ * (   pfy[1] * (yvel[1]-yvel[7])
+                        + pfy[2] * (yvel[2]-yvel[8])
+                        + pfy[3] * (yvel[3]-yvel[5])
+                        + pfy[4] * (yvel[4]-yvel[6]) )
+
+    d[3] = inv_detJ * (   pfz[1] * (zvel[1]-zvel[7])
+                        + pfz[2] * (zvel[2]-zvel[8])
+                        + pfz[3] * (zvel[3]-zvel[5])
+                        + pfz[4] * (zvel[4]-zvel[6]) )
+
+    dyddx = inv_detJ * (  pfx[1] * (yvel[1]-yvel[7])
+                        + pfx[2] * (yvel[2]-yvel[8])
+                        + pfx[3] * (yvel[3]-yvel[5])
+                        + pfx[4] * (yvel[4]-yvel[6]) )
+
+    dxddy = inv_detJ * (  pfy[1] * (xvel[1]-xvel[7])
+                        + pfy[2] * (xvel[2]-xvel[8])
+                        + pfy[3] * (xvel[3]-xvel[5])
+                        + pfy[4] * (xvel[4]-xvel[6]) )
+
+    dzddx = inv_detJ * (  pfx[1] * (zvel[1]-zvel[7])
+                        + pfx[2] * (zvel[2]-zvel[8])
+                        + pfx[3] * (zvel[3]-zvel[5])
+                        + pfx[4] * (zvel[4]-zvel[6]) )
+
+    dxddz = inv_detJ * (  pfz[1] * (xvel[1]-xvel[7])
+                        + pfz[2] * (xvel[2]-xvel[8])
+                        + pfz[3] * (xvel[3]-xvel[5])
+                        + pfz[4] * (xvel[4]-xvel[6]) )
+
+    dzddy = inv_detJ * (  pfy[1] * (zvel[1]-zvel[7])
+                        + pfy[2] * (zvel[2]-zvel[8])
+                        + pfy[3] * (zvel[3]-zvel[5])
+                        + pfy[4] * (zvel[4]-zvel[6]) )
+
+    dyddz = inv_detJ * (  pfz[1] * (yvel[1]-yvel[7])
+                        + pfz[2] * (yvel[2]-yvel[8])
+                        + pfz[3] * (yvel[3]-yvel[5])
+                        + pfz[4] * (yvel[4]-yvel[6]) )
+
+    d[6] = 0.5 * ( dxddy + dyddx )
+    d[5] = 0.5 * ( dxddz + dzddx )
+    d[4] = 0.5 * ( dzddy + dyddz )
+end
+
+
+
+function calcKinematicsForElems(domain::Domain, numElem, dt)
+
+    detJ = 0.0
+
+    B = Matrix{Float64}(undef, 8, 3) # shape function derivatives
+    D = Vector{Float64}(undef, 6)
+    x_local = Vector{Float64}(undef, 8)
+    y_local = Vector{Float64}(undef, 8)
+    z_local = Vector{Float64}(undef, 8)
+    xd_local = Vector{Float64}(undef, 8)
+    yd_local = Vector{Float64}(undef, 8)
+    zd_local = Vector{Float64}(undef, 8)
+
+
+        nodelist = domain.nodelist
+    # loop over all elements
+    for k in 1:numElem
+        # elemToNode => domain%m_nodelist(k*8:)
+
+        # get nodal coordinates from global arrays and copy into local arrays
+        for lnode in 1:8
+        # INDEXING
+        gnode = nodelist[(k-1)*8 + lnode]
+        x_local[lnode] = domain.x[gnode]
+        y_local[lnode] = domain.y[gnode]
+        z_local[lnode] = domain.z[gnode]
+        end
+
+        # volume calculations
+        volume = calcElemVolume(x_local, y_local, z_local )
+        relativeVolume = volume / domain.volo[k]
+        domain.vnew[k] = relativeVolume
+        domain.delv[k] = relativeVolume - domain.v[k]
+
+        # set characteristic length
+        domain.arealg[k] = calcElemCharacteristicLength(x_local, y_local,
+                                                        z_local, volume)
+
+        #  get nodal velocities from global array and copy into local arrays.
+        for lnode in 1:8
+        # INDEXING
+        gnode = nodelist[(k-1)*8+lnode]
+        xd_local[lnode] = domain.xd[gnode]
+        yd_local[lnode] = domain.yd[gnode]
+        zd_local[lnode] = domain.zd[gnode]
+        end
+
+
+        dt2 = 0.5 * dt
+        x_local .= x_local .- dt2 .* xd_local
+        y_local .= y_local .- dt2 .* yd_local
+        z_local .= z_local .- dt2 .* zd_local
+
+        calcElemShapeFunctionDerivatives( x_local, y_local, z_local, 
+                                            B, detJ )
+
+        calcElemVelocityGradient( xd_local, yd_local, zd_local, 
+                                        B, detJ, D )
+
+        # put velocity gradient quantities into their global arrays.
+        domain.dxx[k] = D[1]
+        domain.dyy[k] = D[2]
+        domain.dzz[k] = D[3]
+    end
+end
+
+function calcLagrangeElements(domain, delt)
+    numElem = domain.numElem
+    if numElem > 0
+        calcKinematicsForElems(domain, numElem, delt)
+
+        # element loop to do some stuff not included in the elemlib function.
+
+        for k in 1:numElem
+        # calc strain rate and apply as constraint (only done in FB element)
+        vdov = domain.dxx[k] + domain.dyy[k] + domain.dzz[k]
+        vdovthird = vdov/3.0
+
+        # make the rate of deformation tensor deviatoric
+        domain.vdov[k] = vdov
+        domain.dxx[k] = domain.dxx[k] - vdovthird
+        domain.dyy[k] = domain.dyy[k] - vdovthird
+        domain.dzz[k] = domain.dzz[k] - vdovthird
+
+        # See if any volumes are negative, and take appropriate action.
+        if domain.vnew[k] <= 0.0
+            error("Volume Error")
+        end
+        end
+    end
+end
+
+function calcMonotonicQGradientsForElems(domain::Domain)
+
+  ptiny = 1.e-36
+
+  numElem = domain.numElem
+
+  for i in 1:numElem
+        k = (i-1)*8
+        n0 = domain.nodelist[k+1]
+        n1 = domain.nodelist[k+2]
+        n2 = domain.nodelist[k+3]
+        n3 = domain.nodelist[k+4]
+        n4 = domain.nodelist[k+5]
+        n5 = domain.nodelist[k+6]
+        n6 = domain.nodelist[k+7]
+        n7 = domain.nodelist[k+8]
+
+        x0 = domain.x[n0]
+        x1 = domain.x[n1]
+        x2 = domain.x[n2]
+        x3 = domain.x[n3]
+        x4 = domain.x[n4]
+        x5 = domain.x[n5]
+        x6 = domain.x[n6]
+        x7 = domain.x[n7]
+
+        y0 = domain.y[n0]
+        y1 = domain.y[n1]
+        y2 = domain.y[n2]
+        y3 = domain.y[n3]
+        y4 = domain.y[n4]
+        y5 = domain.y[n5]
+        y6 = domain.y[n6]
+        y7 = domain.y[n7]
+
+        z0 = domain.z[n0]
+        z1 = domain.z[n1]
+        z2 = domain.z[n2]
+        z3 = domain.z[n3]
+        z4 = domain.z[n4]
+        z5 = domain.z[n5]
+        z6 = domain.z[n6]
+        z7 = domain.z[n7]
+
+        xv0 = domain.xd[n0]
+        xv1 = domain.xd[n1]
+        xv2 = domain.xd[n2]
+        xv3 = domain.xd[n3]
+        xv4 = domain.xd[n4]
+        xv5 = domain.xd[n5]
+        xv6 = domain.xd[n6]
+        xv7 = domain.xd[n7]
+
+        yv0 = domain.yd[n0]
+        yv1 = domain.yd[n1]
+        yv2 = domain.yd[n2]
+        yv3 = domain.yd[n3]
+        yv4 = domain.yd[n4]
+        yv5 = domain.yd[n5]
+        yv6 = domain.yd[n6]
+        yv7 = domain.yd[n7]
+
+        zv0 = domain.zd[n0]
+        zv1 = domain.zd[n1]
+        zv2 = domain.zd[n2]
+        zv3 = domain.zd[n3]
+        zv4 = domain.zd[n4]
+        zv5 = domain.zd[n5]
+        zv6 = domain.zd[n6]
+        zv7 = domain.zd[n7]
+
+        vol = domain.volo[i]*domain.vnew[i]
+        norm = 1.0 / ( vol + ptiny )
+
+        function sum4(x1,x2,x3,x4)
+            x1+x2+x3+x4
+        end
+
+        dxj = -0.25*(sum4(x0,x1,x5,x4) - sum4(x3,x2,x6,x7))
+        dyj = -0.25*(sum4(y0,y1,y5,y4) - sum4(y3,y2,y6,y7))
+        dzj = -0.25*(sum4(z0,z1,z5,z4) - sum4(z3,z2,z6,z7))
+
+        dxi =  0.25*(sum4(x1,x2,x6,x5) - sum4(x0,x3,x7,x4))
+        dyi =  0.25*(sum4(y1,y2,y6,y5) - sum4(y0,y3,y7,y4))
+        dzi =  0.25*(sum4(z1,z2,z6,z5) - sum4(z0,z3,z7,z4))
+
+        dxk =  0.25*(sum4(x4,x5,x6,x7) - sum4(x0,x1,x2,x3))
+        dyk =  0.25*(sum4(y4,y5,y6,y7) - sum4(y0,y1,y2,y3))
+        dzk =  0.25*(sum4(z4,z5,z6,z7) - sum4(z0,z1,z2,z3))
+
+        # find delvk and delxk ( i cross j )
+
+        ax = dyi*dzj - dzi*dyj
+        ay = dzi*dxj - dxi*dzj
+        az = dxi*dyj - dyi*dxj
+
+        domain.delx_zeta[i] = vol / sqrt(ax*ax + ay*ay + az*az + ptiny)
+
+        ax = ax * norm
+        ay = ay * norm
+        az = az * norm
+
+        dxv = 0.25*(sum4(xv4,xv5,xv6,xv7) - sum4(xv0,xv1,xv2,xv3))
+        dyv = 0.25*(sum4(yv4,yv5,yv6,yv7) - sum4(yv0,yv1,yv2,yv3))
+        dzv = 0.25*(sum4(zv4,zv5,zv6,zv7) - sum4(zv0,zv1,zv2,zv3))
+
+        domain.delv_zeta[i] = ax*dxv + ay*dyv + az*dzv
+
+        # find delxi and delvi ( j cross k )
+
+        ax = dyj*dzk - dzj*dyk
+        ay = dzj*dxk - dxj*dzk
+        az = dxj*dyk - dyj*dxk
+
+        domain.delx_xi[i] = vol / sqrt(ax*ax + ay*ay + az*az + ptiny)
+
+        ax = ax * norm
+        ay = ay * norm
+        az = az * norm
+
+        dxv = 0.25*(sum4(xv1,xv2,xv6,xv5) - sum4(xv0,xv3,xv7,xv4))
+        dyv = 0.25*(sum4(yv1,yv2,yv6,yv5) - sum4(yv0,yv3,yv7,yv4))
+        dzv = 0.25*(sum4(zv1,zv2,zv6,zv5) - sum4(zv0,zv3,zv7,zv4))
+
+        domain.delv_xi[i] = ax*dxv + ay*dyv + az*dzv ;
+
+        # find delxj and delvj ( k cross i )
+
+        ax = dyk*dzi - dzk*dyi ;
+        ay = dzk*dxi - dxk*dzi ;
+        az = dxk*dyi - dyk*dxi ;
+
+        domain.delx_eta[i] = vol / sqrt(ax*ax + ay*ay + az*az + ptiny)
+
+        ax = ax * norm
+        ay = ay * norm
+        az = az * norm
+
+        dxv = -0.25*(sum4(xv0,xv1,xv5,xv4) - sum4(xv3,xv2,xv6,xv7))
+        dyv = -0.25*(sum4(yv0,yv1,yv5,yv4) - sum4(yv3,yv2,yv6,yv7))
+        dzv = -0.25*(sum4(zv0,zv1,zv5,zv4) - sum4(zv3,zv2,zv6,zv7))
+
+        domain.delv_eta[i] = ax*dxv + ay*dyv + az*dzv ;
+    end
+    return nothing
+end
+
+function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
+                                        monoq_limiter_mult, monoq_max_slope,
+                                        ptiny,
+                                        elength
+                                    )
+
+    for ielem in 1:elength
+        i = domain.matElemlist[ielem]
+        bcMask = domain.elemBC[i]
+
+    #   phixi
+        norm = 1.0 / ( domain.delv_xi[i] + ptiny )
+
+        case = bcMask & XI_M
+        if case == 0
+            delvm = domain.delv_xi[domain.lxim[i]]
+        elseif case == XI_M_SYMM
+            delvm = domain.delv_xi[i]
+        elseif case == XI_M_FREE
+            delvm = 0.0
+        else
+            error("Error")
+        end
+
+        case = bcMask & XI_P
+        if case == 0
+            delvp = domain.delv_xi[domain.lxip[i]]
+        elseif case == XI_P_SYMM
+            delvp = domain.delv_xi[i]
+        elseif case == XI_P_FREE
+            delvp = 0.0
+        else
+            error("Error")
+        end
+
+        delvm = delvm * norm
+        delvp = delvp * norm
+
+        phixi = 0.5 * ( delvm + delvp )
+
+        delvm = delvm * monoq_limiter_mult
+        delvp = delvp * monoq_limiter_mult
+
+        if  delvm < phixi
+            phixi = delvm
+        end
+        if  delvp < phixi
+            phixi = delvp
+        end
+        if  phixi < 0.0
+            phixi = 0.0
+        end
+        if  phixi > monoq_max_slope
+            phixi = monoq_max_slope
+        end
+
+
+    #   phieta
+        norm = 1.0 / ( domain.delv_eta[i] + ptiny )
+
+        case = bcMask & ETA_M
+        if case == 0
+            delvm = domain.delv_eta[domain.letam[i]]
+        elseif case == ETA_M_SYMM
+            delvm = domain.delv_eta[i]
+        elseif case == ETA_M_FREE
+            delvm = 0.0
+        else
+            error("Error")
+        end
+
+        case = bcMask & ETA_P
+        if case == 0
+            delvp = domain.delv_eta[domain.letap[i]]
+        elseif case == ETA_P_SYMM
+            delvp = domain.delv_eta[i]
+        elseif case == ETA_P_FREE
+            delvp = 0.0
+        else
+            error("Error")
+        end
+
+        delvm = delvm * norm
+        delvp = delvp * norm
+
+        phieta = 0.5 * ( delvm + delvp )
+
+        delvm = delvm * monoq_limiter_mult
+        delvp = delvp * monoq_limiter_mult
+
+        if delvm  < phieta
+            phieta = delvm
+        end
+        if delvp  < phieta
+            phieta = delvp
+        end
+        if phieta < 0.0
+            phieta = 0.0
+        end
+        if phieta > monoq_max_slope
+            phieta = monoq_max_slope
+        end
+
+    #   phizeta
+        norm = 1.0 / ( domain.delv_zeta[i] + ptiny )
+
+        case = bcMask & ZETA_M
+        if case == 0
+            delvm = domain.delv_zeta[domain.lzetam[i]]
+        elseif case == ZETA_M_SYMM
+            delvm = domain.delv_zeta[i]
+        elseif case == ZETA_M_FREE
+            delvm = 0.0
+        else
+            error("Error")
+        end
+
+        case = bcMask & ZETA_P
+        if case == 0
+            delvp = domain.delv_zeta[domain.lzetap[i]]
+        elseif case == ZETA_P_SYMM
+            delvp = domain.delv_zeta[i]
+        elseif case == ZETA_P_FREE
+            delvp = 0.0
+        else
+            error("Error")
+        end
+
+        delvm = delvm * norm
+        delvp = delvp * norm
+
+        phizeta = 0.5 * ( delvm + delvp )
+
+        delvm = delvm * monoq_limiter_mult
+        delvp = delvp * monoq_limiter_mult
+
+        if delvm < phizeta
+            phizeta = delvm
+        end
+        if delvp < phizeta
+            phizeta = delvp
+        end
+        if phizeta < 0.0
+            phizeta = 0.0
+        end
+        if phizeta > monoq_max_slope
+            phizeta = monoq_max_slope
+        end
+
+    #   Remove length scale
+
+        if domain.vdov[i] > 0.0
+            qlin  = 0.0
+            qquad = 0.0
+        else
+            delvxxi   = domain.delv_xi[i]   * domain.delx_xi[i]
+            delvxeta  = domain.delv_eta[i]  * domain.delx_eta[i]
+            delvxzeta = domain.delv_zeta[i] * domain.delx_zeta[i]
+
+            if delvxxi   > 0.0
+                delvxxi   = 0.0
+            end
+            if delvxeta  > 0.0
+                delvxeta  = 0.0
+            end
+            if delvxzeta > 0.0
+                delvxzeta = 0.0
+            end
+
+            rho = domain.elemMass[i] / (domain.volo[i] * domain.vnew[i])
+
+            qlin = -qlc_monoq * rho *
+                    (  delvxxi   * (1.0 - phixi)  +
+                        delvxeta  * (1.0 - phieta) +
+                        delvxzeta * (1.0 - phizeta)  )
+
+            qquad = qqc_monoq * rho *
+                    (  delvxxi*delvxxi     * (1.0 - phixi*phixi)   +
+                        delvxeta*delvxeta   * (1.0 - phieta*phieta) +
+                        delvxzeta*delvxzeta * (1.0 - phizeta*phizeta)  )
+        end
+
+        domain.qq[i] = qquad
+        domain.ql[i] = qlin
+    end
+end
+
+
+function calcMonotonicQForElems(domain::Domain)
+
+    ptiny = 1e-36
+    #
+    # initialize parameters
+    #
+    monoq_max_slope    = domain.monoq_max_slope
+    monoq_limiter_mult = domain.monoq_limiter_mult
+
+    #
+    # calculate the monotonic q for pure regions
+    #
+    elength = domain.numElem
+    if elength > 0
+        qlc_monoq = domain.qlc_monoq
+        qqc_monoq = domain.qqc_monoq
+        calcMonotonicQRegionForElems( qlc_monoq, qqc_monoq,
+                                        monoq_limiter_mult,
+                                        monoq_max_slope,
+                                        ptiny, elength )
+    end
+end
+
+
+
+function calcQForElems(domain::Domain)
+
+
+    qstop = domain.qstop
+    numElem = domain.numElem
+
+    # MONOTONIC Q option
+
+
+    # Calculate velocity gradients
+    calcMonotonicQGradientsForElems(domain)
+
+    # Transfer veloctiy gradients in the first order elements
+    # problem->commElements->Transfer(CommElements::monoQ)
+    calcMonotonicQForElems(domain)
+
+    # Don't allow excessive artificial viscosity
+    if numElem != 0
+        idx = -1
+        for i in 1:numElem
+            if domain.q[i] > qstop
+                idx = i
+                break
+            end
+        end
+
+        if idx >= 0
+            error("QStopError")
+        end
+    end
+end
+
+
+
+function lagrangeElements(domain::Domain)
+
+    delt = domain.deltatime_t
+
+    calcLagrangeElements(domain, delt)
+
+    # Calculate Q.  (Monotonic q option requires communication)
+    calcQForElems(domain)
+
+    # applyMaterialPropertiesForElems(domain)
+
+    # updateVolumesForElems(domain)
+
+end
 
 
 function lagrangeLeapFrog(domain::Domain)
