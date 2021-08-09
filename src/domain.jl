@@ -790,6 +790,49 @@ function Domain(prob::LuleshProblem)
     return domain
 end
 
+function timeIncrement!(domain::Domain)
+    targetdt = domain.stoptime - domain.time_h
+    if domain.dtfixed <= 0.0 && domain.cycle != 0
+        olddt = domain.deltatime_h
+
+        # This will require a reduction in parallel
+        newdt = 1.0e+20
+
+        if domain.dtcourant_h < newdt
+            newdt = domain.dtcourant_h / 2.0
+        end
+
+        if domain.dthydro_h < newdt
+            newdt = domain.dthydro_h * 2.0 / 3.0
+        end
+
+        ratio = newdt / olddt
+        if ratio >= 1.0
+            if ratio < domain.deltatimemultlb
+                newdt = olddt
+            elseif ratio > domain.deltatimemultub
+                newdt = olddt * domain.deltatimemultub
+            end
+        end
+
+        newdt = min(newdt, domain.dtmax)
+
+        domain.deltatime_h = newdt
+    end
+
+    # try to prevent very small scaling on the next cycle
+    if domain.deltatime_h < targetdt < 4.0 * domain.deltatime_h / 3.0
+        targetdt = 4.0 * domain.deltatime_h / 3.0
+    end
+
+    if targetdt < domain.deltatime_h
+        domain.deltatime_h = targetdt
+    end
+
+    domain.time_h += domain.deltatime_h
+    domain.cycle += 1
+end
+
 function initStressTermsForElems(domain::Domain, sigxx, sigyy, sigzz)
     # Based on FORTRAN implementation down from here
     sigxx .=  .- domain.p .- domain.q

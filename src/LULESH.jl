@@ -42,7 +42,8 @@ include("domain.jl")
 include("mpi.jl")
 include("utils.jl")
 
-export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime, lagrangeLeapFrog, comm_max
+export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime,
+       lagrangeLeapFrog, comm_max, timeIncrement!
 
 function InitMeshDecomp(comm)
     # Assume cube processor layout for now
