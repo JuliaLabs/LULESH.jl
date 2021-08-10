@@ -5,6 +5,7 @@ using Enzyme
 
 Enzyme.API.printperf!(true)
 Enzyme.API.printall!(true)
+Enzyme.API.instname!(true)
 
 function main(nx, structured, num_iters, mpi, cuda)
     # TODO: change default nr to 11
