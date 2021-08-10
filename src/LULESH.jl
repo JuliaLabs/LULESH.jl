@@ -5,6 +5,7 @@ using MPI
 using Parameters
 using Printf
 using Random
+using StaticArrays
 
 abstract type AbstractDomain end
 # Device vector types
