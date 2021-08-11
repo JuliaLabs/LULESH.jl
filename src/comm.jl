@@ -775,7 +775,7 @@ function commSend(domain::Domain, msgType, fields,
    MPI.Waitall!(domain.sendRequest)
 end
 
-function commSBN(domain::Domain, fieldData)
+function commSBN(domain::Domain, fields)
    if domain.comm === nothing
       return
    end
@@ -1110,7 +1110,7 @@ function commMonoQ(domain::Domain)
    dz = domain.sizeZ
 
    # assume communication to 6 neighbors by default
-   rowMin, rowMax, colMin, colMax, planeMin, planeMax = connect(domain)
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
    numElem = domain.numElem
 
@@ -1223,9 +1223,9 @@ function commSyncPosVel(domain::Domain)
    end
    doRecv = false
    xferFields = 6 ; # x, y, z, xd, yd, zd
-   fields = (x, y, z, xd, yd, zd)
-   maxPlaneComm = xferFields * domain->maxPlaneSize
-   maxEdgeComm  = xferFields * domain->maxEdgeSize
+   fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+   maxPlaneComm = xferFields * domain.maxPlaneSize
+   maxEdgeComm  = xferFields * domain.maxEdgeSize
    pmsg = 0 # plane comm msg
    emsg = 0 # edge comm msg
    cmsg = 0 # corner comm msg
