@@ -34,8 +34,6 @@ function commRecv(
       # contiguous memory
       fromRank = myRank - domain.m_tp*domain.m_tp
       recvCount = dx * dy * xferFields
-      @show length(domain.commDataRecv)
-      @show recvCount
 
       buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
