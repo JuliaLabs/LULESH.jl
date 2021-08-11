@@ -191,18 +191,18 @@
 
 
     # # Used in setup
-    # IndexT m_rowMin, m_rowMax;
-    # IndexT m_colMin, m_colMax;
-    # IndexT m_planeMin, m_planeMax ;
+    m_rowMin::IndexT
+    m_rowMax::IndexT
+    m_colMin::IndexT
+    m_colMax::IndexT
+    m_planeMin::IndexT
+    m_planeMax::IndexT
 
     # # Communication Work space
-    # Real_t *commDataSend ;
-    # Real_t *commDataRecv ;
+    commDataSend::VD{FT}
+    commDataRecv::VD{FT}
 
-    # Real_t *d_commDataSend ;
-    # Real_t *d_commDataRecv ;
-
-    # # Maximum number of block neighbors
-    # MPI_Request recvRequest[26] ; # 6 faces + 12 edges + 8 corners
-    # MPI_Request sendRequest[26] ; # 6 faces + 12 edges + 8 corners
+    # Maximum number of block neighbors
+    recvRequest::Vector{MPI.Request} # 6 faces + 12 edges + 8 corners
+    sendRequest::Vector{MPI.Request} # 6 faces + 12 edges + 8 corners
 end

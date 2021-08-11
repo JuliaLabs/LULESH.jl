@@ -257,46 +257,46 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
         rowInc   = (i-1)*edgeElems
         for j in 1:edgeElems
             if domain.m_planeLoc == 0
-                elemBC_h[rowInc+j] |= ZETA_M_SYMM
+                elemBC_h[rowInc+(j-1)+1] |= ZETA_M_SYMM
             else
-                elemBC_h[rowInc+j] |= ZETA_M_COMM
-                lzetam_h[rowInc+j] = ghostIdx[0] + rowInc + j
+                elemBC_h[rowInc+(j-1)+1] |= ZETA_M_COMM
+                lzetam_h[rowInc+(j-1)+1] = ghostIdx[1] + rowInc + (j-1)
             end
 
             if domain.m_planeLoc == domain.m_tp-1
-                elemBC_h[rowInc+j+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
+                elemBC_h[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
             else
-                elemBC_h[rowInc+j+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
-                lzetap_h[rowInc+j+domElems-edgeElems*edgeElems] = ghostIdx[1] + rowInc + j
+                elemBC_h[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
+                lzetap_h[rowInc+(j-1)+domElems-edgeElems*edgeElems] = ghostIdx[2] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == 0
-                elemBC_h[planeInc+j] |= ETA_M_SYMM
+                elemBC_h[planeInc+(j-1)+1] |= ETA_M_SYMM
             else
-                elemBC_h[planeInc+j] |= ETA_M_COMM
-                letam_h[planeInc+j] = ghostIdx[2] + rowInc + j
+                elemBC_h[planeInc+(j-1)+1] |= ETA_M_COMM
+                letam_h[planeInc+(j-1)+1] = ghostIdx[3] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == domain.m_tp-1
-                elemBC_h[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
+                elemBC_h[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
             else
-                elemBC_h[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
-                letap_h[planeInc+j+edgeElems*edgeElems-edgeElems] = ghostIdx[3] +  rowInc + j
+                elemBC_h[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
+                letap_h[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] = ghostIdx[4] +  rowInc + (j-1)
             end
 
             if domain.m_colLoc == 0
-                elemBC_h[planeInc+j*edgeElems] |= XI_M_SYMM
+                elemBC_h[planeInc+(j-1)*edgeElems+1] |= XI_M_SYMM
             else
-                elemBC_h[planeInc+j*edgeElems] |= XI_M_COMM
-                lxim_h[planeInc+j*edgeElems] = ghostIdx[4] + rowInc + j
+                elemBC_h[planeInc+(j-1)*edgeElems+1] |= XI_M_COMM
+                lxim_h[planeInc+(j-1)*edgeElems+1] = ghostIdx[5] + rowInc + (j-1)
             end
 
             if domain.m_colLoc == domain.m_tp-1
                 # FIXIT this goes out of bounds due to INDEXING
-                # elemBC_h[planeInc+j*edgeElems+edgeElems-1] |= XI_P_FREE
+                # elemBC_h[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_FREE
             else
-                elemBC_h[planeInc+j*edgeElems+edgeElems-1] |= XI_P_COMM
-                lxip_h[planeInc+j*edgeElems+edgeElems-1] = ghostIdx[5] + rowInc + j
+                elemBC_h[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_COMM
+                lxip_h[planeInc+(j-1)*edgeElems+edgeElems-1] = ghostIdx[6] + rowInc + (j-1)
             end
         end
     end
@@ -461,7 +461,7 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::Union{MPI
     copyto!(regNumList, regNumList_h) # Region number per domain element
     copyto!(regElemlist, regElemlist_h) # region indexset
     copyto!(regSorted, regSorted_h) # keeps index of sorted regions
-    @unpack_Domain domain
+    @pack_Domain! domain
 end
 
 function Domain(prob::LuleshProblem)
@@ -513,8 +513,10 @@ function Domain(prob::LuleshProblem)
         0,
         0,0,0,
         0,
-        0,0,0, Vector{Int}(), VDInt(), VDInt(), VDI(), VDI(), VDI()
-
+        0,0,0, Vector{Int}(), VDInt(), VDInt(), VDI(), VDI(), VDI(),
+        0,0,0,0,0,0,
+        VDF(),VDF(),
+        Vector{MPI.Request}(undef, 26), Vector{MPI.Request}(undef, 26)
     )
 
     domain.max_streams = 32
@@ -565,10 +567,10 @@ function Domain(prob::LuleshProblem)
         # Build domain object here. Not nice.
 
 
-        allocateElemPersistent!(domain, domElems);
-        allocateNodalPersistent!(domain, domNodes);
+        allocateElemPersistent!(domain, domElems)
+        allocateNodalPersistent!(domain, domNodes)
 
-    #     domain->SetupCommBuffers(edgeNodes);
+        setupCommBuffers!(domain, edgeNodes)
 
         initializeFields!(domain)
 
@@ -3066,4 +3068,8 @@ function lagrangeLeapFrog(domain::Domain)
 
    calcTimeConstraintsForElems(domain)
    return nothing
+end
+
+function nodalMass(domain)
+    return i -> domain.nodalMass[i]
 end

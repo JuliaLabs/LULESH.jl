@@ -39,14 +39,20 @@ function main(nx, structured, num_iters, mpi, cuda)
     domain = Domain(prob)
     shadowDomain = Domain(prob)
 
-    if mpi
-        error("MPI not yet implemented")
-        boundary_exchange!(domain)
-    end
+    getnodalMass = nodalMass(domain)
+
+    # Initial domain boundary communication
+    commRecv(domain, MSG_COMM_SBN, 1,
+                domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                true, false, prob.comm)
+    #    CommSend<&Domain::nodalMass>(*domain, MSG_COMM_SBN,
+    #             domain->sizeX() + 1, domain->sizeY() + 1, domain->sizeZ() +  1,
+    #             true, false)
+    #    CommSBN<&Domain::nodalMass>(*domain)
 
     # End initialization
     if mpi
-        MPI.Barrier()
+        MPI.Barrier(prob.comm)
     end
 
     if getMyRank(prob.comm) == 0

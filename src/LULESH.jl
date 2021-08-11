@@ -13,6 +13,10 @@ const VD{T} = Vector{T} where T
 
 # Index type
 const IndexT = Int
+# MPI Message Tags
+const MSG_COMM_SBN      = 1024
+const MSG_SYNC_POS_VEL  = 2048
+const MSG_MONOQ         = 3072
 const MAX_FIELDS_PER_MPI_COMM = 6
 
 struct LuleshProblem
@@ -30,7 +34,7 @@ struct LuleshProblem
     floattype
     comm::Union{MPI.Comm, Nothing}
     function LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
-        col, row, plane, side = InitMeshDecomp(comm)
+        col, row, plane, side = initMeshDecomp(comm)
         return new(num_iters, structured, nx, nr, balance, cost, col, row, plane, side, devicetype, floattype, comm)
     end
 end
@@ -39,12 +43,13 @@ include("bc.jl")
 include("types.jl")
 include("domain.jl")
 include("mpi.jl")
+include("comm.jl")
 include("utils.jl")
 
 export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime,
-       lagrangeLeapFrog, comm_max, timeIncrement!
+       lagrangeLeapFrog, comm_max, timeIncrement!, nodalMass, commRecv, MSG_COMM_SBN
 
-function InitMeshDecomp(comm)
+function initMeshDecomp(comm)
     # Assume cube processor layout for now
     numRanks = getNumRanks(comm)
     myRank = getMyRank(comm)

@@ -1,5 +1,63 @@
-SetupCommBuffers(edgeNodes::Int, dom::AbstractDomain) = nothing
-BuildMesh(nx::Int, edgeNodes::Int, edgeElems::Int, domNodes::Int, padded_domElems::Int, x_h::Vector{FT}, y_h::Vector{FT}, z_h::Vector{FT}, nodelist_h::Vector{Int}, dom::AbstractDomain) where {FT} = nothing
+function setupCommBuffers!(domain::Domain, edgeNodes::Int)
+    @unpack_Domain domain
+    # allocate a buffer large enough for nodal ghost data
+    maxEdgeSize = max(domain.sizeX, max(domain.sizeY, domain.sizeZ))+1
+    m_maxPlaneSize = maxEdgeSize*maxEdgeSize
+    m_maxEdgeSize = maxEdgeSize
+
+    # assume communication to 6 neighbors by default
+    m_rowMin = (m_rowLoc == 0)        ? 0 : 1
+    m_rowMax = (m_rowLoc == m_tp-1)     ? 0 : 1
+    m_colMin = (m_colLoc == 0)        ? 0 : 1
+    m_colMax = (m_colLoc == m_tp-1)     ? 0 : 1
+    m_planeMin = (m_planeLoc == 0)    ? 0 : 1
+    m_planeMax = (m_planeLoc == m_tp-1) ? 0 : 1
+
+    # account for face communication
+    comBufSize =(
+        (m_rowMin + m_rowMax + m_colMin + m_colMax + m_planeMin + m_planeMax) *
+        m_maxPlaneSize * MAX_FIELDS_PER_MPI_COMM
+    )
+
+    # account for edge communication
+    comBufSize += (
+        ((m_rowMin & m_colMin) + (m_rowMin & m_planeMin) + (m_colMin & m_planeMin) +
+        (m_rowMax & m_colMax) + (m_rowMax & m_planeMax) + (m_colMax & m_planeMax) +
+        (m_rowMax & m_colMin) + (m_rowMin & m_planeMax) + (m_colMin & m_planeMax) +
+        (m_rowMin & m_colMax) + (m_rowMax & m_planeMin) + (m_colMax & m_planeMin)) *
+        m_maxEdgeSize * MAX_FIELDS_PER_MPI_COMM
+    )
+
+    # account for corner communication
+    # factor of 16 is so each buffer has its own cache line
+    comBufSize += (((m_rowMin & m_colMin & m_planeMin) +
+            (m_rowMin & m_colMin & m_planeMax) +
+            (m_rowMin & m_colMax & m_planeMin) +
+            (m_rowMin & m_colMax & m_planeMax) +
+            (m_rowMax & m_colMin & m_planeMin) +
+            (m_rowMax & m_colMin & m_planeMax) +
+            (m_rowMax & m_colMax & m_planeMin) +
+            (m_rowMax & m_colMax & m_planeMax))
+            )
+
+    domain.commDataSend = Vector{Float64}(undef, comBufSize)
+    domain.commDataRecv = Vector{Float64}(undef, comBufSize)
+    # prevent floating point exceptions
+    fill!(domain.commDataSend, 0)
+    fill!(domain.commDataRecv, 0)
+
+    # Boundary nodesets
+    if (m_colLoc == 0)
+        resize!(domain.symmX, edgeNodes*edgeNodes)
+    end
+    if (m_rowLoc == 0)
+        resize!(domain.symmY, edgeNodes*edgeNodes)
+    end
+    if (m_planeLoc == 0)
+        resize!(domain.symmZ, edgeNodes*edgeNodes)
+    end
+    @pack_Domain! domain
+end
 
 getMyRank(comm::MPI.Comm) = MPI.Comm_rank(comm)
 getMyRank(::Nothing) = 0
