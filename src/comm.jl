@@ -1220,5 +1220,142 @@ function commSyncPosVel(domain::Domain)
    if domain.comm === nothing
       return
    end
+   doRecv = false
+   xferFields = 6 ; # x, y, z, xd, yd, zd
+   fields = (x, y, z, xd, yd, zd)
+   maxPlaneComm = xferFields * domain->maxPlaneSize ;
+   maxEdgeComm  = xferFields * domain->maxEdgeSize ;
+   pmsg = 0 # plane comm msg
+   emsg = 0 # edge comm msg
+   cmsg = 0 # corner comm msg
+   dx = domain.sizeX + 1
+   dy = domain.sizeY + 1
+   dz = domain.sizeZ + 1
+
+   # assume communication to 6 neighbors by default
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+
+   myRank = MPI.Comm_rank(domain.comm)
+
+   if planeMin | planeMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dx * dy
+
+      if planeMin && doRecv
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            copyto_zero!(field, 0, domain.commDataRecv, offset, opCount)
+            offset += opCount
+         end
+         pmsg += 1
+      end
+
+      if planeMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+
+         dest_offset = dx*dy*(dz - 1)
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            copyto_zero!(field, dest_offset, domain.commDataRecv, offset, opCount)
+            offset += opCount
+         end
+         pmsg += 1
+      end
+
+   end
+   if rowMin | rowMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dx * dz
+
+      if rowMin && doRecv
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 1:dz
+               dest_offset = (i-1)*dx*dy
+               opCount = dx
+               copyto_zero!(field, dest_offset, domain.commDataRecv, offset + (i-1)*dx, opCount)
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+      if rowMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 1:dz
+               dest_offset = dx*(dy - 1) + (i-1)*dx*dy
+               opCount = dx
+               copyto_zero!(field, dest_offset, domain.commDataRecv, offset+(i-1)*dx, opCount)
+               offset += opCount
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+   end
+   if colMin | colMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dy * dz
+
+      if colMin && doRecv
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 1:dz
+               for j in 1:dy
+                  field[offset +1 (i-1)*dx*dy + (j-1)*dx] = domain.commDataRecv[(i-1)*dy + j]
+               end
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+      if colMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 1:dz
+               for j in 1:dy
+                  field[offset + 1 + dx - 1 * (i-1)*dx*dy + (j-1)*dx] = domain.commDataRecv[(i-1)*dy + j]
+               end
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if rowMin && colMin && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      for field in fields
+         for i in 1:dz
+               field[(i-1)*dx*dy + 1] = domain.commDataRecv[i]
+         end
+         offset += dz
+      end
+      emsg += 1
+   end
+
+
+   if (rowMin && planeMin && doRecv)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      dest_offset = dz*dy
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      for field in fields
+         copyto_zero!(field, dest_offset, domain.commDataRecv, offset+(i-1)*dx, opCount)
+         offset += dx
+      end
+      emsg += 1
+   end
    error("unimplemented")
 end
