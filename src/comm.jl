@@ -42,13 +42,13 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    function irecv!(fromProc, offset, recvCount)
       idx = offset + 1
       data = view(domain.commDataRecv, idx:(idx+recvCount))
-      return MPI.Irecv!(data, fromProc, msgType, MPI.MPI_COMM_WORLD)
+      return MPI.Irecv!(data, fromProc, msgType, domain.comm)
    end
 
    # receive data from neighboring domain faces
    if planeMin && doRecv
       # contiguous memory
-      fromProc = myRank - domain.tp^2
+      fromProc = myRank - domain.m_tp^2
       recvCount = dx * dy * xferFields
       req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
       domain.recvRequest[pmsg+1] = req
@@ -57,7 +57,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
    if planeMax
       # contiguous memory
-      fromProc = myRank + domain.tp^2
+      fromProc = myRank + domain.m_tp^2
       recvCount = dx * dy * xferFields
       req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
       domain.recvRequest[pmsg+1] = req
@@ -66,7 +66,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
    if rowMin && doRecv
       # semi-contiguous memory
-      fromProc = myRank - domain.tp
+      fromProc = myRank - domain.m_tp
       recvCount = dx * dz * xferFields
       req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
       domain.recvRequest[pmsg+1] = req
@@ -75,7 +75,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
    if rowMax
       # semi-contiguous memory
-      fromProc = myRank + domain.tp
+      fromProc = myRank + domain.m_tp
       recvCount = dx * dz * xferFields
       req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
       domain.recvRequest[pmsg+1] = req
@@ -103,7 +103,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    if !planeOnly
       # receive data from domains connected only by an edge
       if rowMin && colMin && doRecv
-         fromProc = myRank - domain.tp - 1
+         fromProc = myRank - domain.m_tp - 1
          recvCount = dz * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -112,7 +112,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMin && colMax && doRecv
-         fromProc = myRank - domain.tp^2 - domain.tp
+         fromProc = myRank - domain.m_tp^2 - domain.m_tp
          recvCount = dx * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -121,7 +121,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if colMin && planeMin && doRecv
-         fromProc = myRank - domain.tp^2 - 1
+         fromProc = myRank - domain.m_tp^2 - 1
          recvCount = dy * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -130,7 +130,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMax && colMax
-         fromProc = myRank + domain.tp + 1
+         fromProc = myRank + domain.m_tp + 1
          recvCount = dz * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -139,7 +139,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMax && planeMax
-         fromProc = myRank + domain.tp^2 + domain.tp
+         fromProc = myRank + domain.m_tp^2 + domain.m_tp
          recvCount = dx * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -148,7 +148,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if colMin && planeMax
-         fromProc = myRank + domain.tp^2 + 1
+         fromProc = myRank + domain.m_tp^2 + 1
          recvCount = dy * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -157,7 +157,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMax && colMin
-         fromProc = myRank + domain.tp - 1
+         fromProc = myRank + domain.m_tp - 1
          recvCount = dz * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -166,7 +166,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMin && planeMax
-         fromProc = myRank + domain.tp^2 - domain.tp
+         fromProc = myRank + domain.m_tp^2 - domain.m_tp
          recvCount = dx * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -175,7 +175,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if colMin && planeMax
-         fromProc = myRank + domain.tp^2 - 1
+         fromProc = myRank + domain.m_tp^2 - 1
          recvCount = dy * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -184,7 +184,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMax && colMax && doRecv
-         fromProc = myRank - domain.tp + 1
+         fromProc = myRank - domain.m_tp + 1
          recvCount = dz * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -193,7 +193,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if rowMax && planeMin && doRecv
-         fromProc = myRank - domain.tp^2 + domain.tp
+         fromProc = myRank - domain.m_tp^2 + domain.m_tp
          recvCount = dx * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -202,7 +202,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       end
 
       if colMax && planeMin && doRecv
-         fromProc = myRank - domain.tp^2 + 1
+         fromProc = myRank - domain.m_tp^2 + 1
          recvCount = dy * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
@@ -213,7 +213,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       # receive data from domains connected only by a corner
       if rowMin && colMin && planeMin && doRecv
          # corner at domain logical coord (0, 0, 0)
-         fromProc = myRank - domain.tp^2 - domain.tp - 1
+         fromProc = myRank - domain.m_tp^2 - domain.m_tp - 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -223,7 +223,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMin && colMin && planeMax
          # corner at domain logical coord (0, 0, 1)
-         fromProc = myRank + domain.tp^2 - domain.tp - 1
+         fromProc = myRank + domain.m_tp^2 - domain.m_tp - 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -233,7 +233,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMin && colMax && planeMin && doRecv
          # corner at domain logical coord (1, 0, 0)
-         fromProc = myRank - domain.tp^2 - domain.tp + 1
+         fromProc = myRank - domain.m_tp^2 - domain.m_tp + 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -243,7 +243,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMin && colMax && planeMax
          # corner at domain logical coord (1, 0, 1)
-         fromProc = myRank + domain.tp^2 - domain.tp + 1
+         fromProc = myRank + domain.m_tp^2 - domain.m_tp + 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -253,7 +253,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMax && colMin && planeMin && doRecv
          # corner at domain logical coord (0, 1, 0)
-         fromProc = myRank - domain.tp^2 + domain.tp - 1
+         fromProc = myRank - domain.m_tp^2 + domain.m_tp - 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -263,7 +263,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMax && colMin && planeMax
          # corner at domain logical coord (0, 1, 1)
-         fromProc = myRank + domain.tp^2 + domain.tp - 1
+         fromProc = myRank + domain.m_tp^2 + domain.m_tp - 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -273,7 +273,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMax && colMax && planeMin && doRecv
          # corner at domain logical coord (1, 1, 0)
-         fromProc = myRank - domain.tp^2 + domain.tp + 1
+         fromProc = myRank - domain.m_tp^2 + domain.m_tp + 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -283,7 +283,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
       if rowMax && colMax && planeMax
          # corner at domain logical coord (1, 1, 1)
-         fromProc = myRank + domain.tp^2 + domain.tp + 1
+         fromProc = myRank + domain.m_tp^2 + domain.m_tp + 1
          recvCount = xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
          req = irecv!(fromProc, offset, recvCount)
@@ -336,7 +336,7 @@ function commSend(domain::Domain, msgType, fields,
          idx = pmsg * maxPlaneComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
 
-         otherRank = myRank - domain.tp^2
+         otherRank = myRank - domain.m_tp^2
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+1] = req
          pmsg += 1
@@ -353,7 +353,7 @@ function commSend(domain::Domain, msgType, fields,
          idx = pmsg * maxPlaneComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
 
-         otherRank = myRank + domain.tp^2
+         otherRank = myRank + domain.m_tp^2
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+1] = req
          pmsg += 1
@@ -377,7 +377,7 @@ function commSend(domain::Domain, msgType, fields,
          idx = pmsg * maxPlaneComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
 
-         otherRank = myRank - domain.tp
+         otherRank = myRank - domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+1] = req
          pmsg += 1
@@ -395,7 +395,7 @@ function commSend(domain::Domain, msgType, fields,
          idx = pmsg * maxPlaneComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
 
-         otherRank = myRank + domain.tp
+         otherRank = myRank + domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+1] = req
          pmsg += 1
@@ -458,7 +458,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
-         otherRank = myRank - domain.tp - 1
+         otherRank = myRank - domain.m_tp - 1
 
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
@@ -475,7 +475,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
-         otherRank = myRank - domain.tp^2 - domain.tp
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -491,7 +491,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
-         otherRank = myRank - domain.tp^2 - 1
+         otherRank = myRank - domain.m_tp^2 - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -508,7 +508,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
-         otherRank = myRank + domain.tp + 1
+         otherRank = myRank + domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -525,7 +525,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
-         otherRank = myRank + domain.tp^2 + domain.tp
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -542,7 +542,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
-         otherRank = myRank + domain.tp^2 + 1
+         otherRank = myRank + domain.m_tp^2 + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -559,7 +559,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
-         otherRank = myRank + domain.tp - 1
+         otherRank = myRank + domain.m_tp - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -576,7 +576,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
-         otherRank = myRank - domain.tp^2 - domain.tp
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -593,7 +593,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
-         otherRank = myRank - domain.tp^2 - 1
+         otherRank = myRank - domain.m_tp^2 - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -610,7 +610,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
-         otherRank = myRank - domain.tp + 1
+         otherRank = myRank - domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -627,7 +627,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
-         otherRank = myRank + domain.tp^2 + domain.tp
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -644,7 +644,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
-         otherRank = myRank - domain.tp^2 + 1
+         otherRank = myRank - domain.m_tp^2 + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -659,7 +659,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank - domain.tp^2 - domain.tp - 1
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -674,7 +674,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank + domain.tp^2 - domain.tp - 1
+         otherRank = myRank + domain.m_tp^2 - domain.m_tp - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -689,7 +689,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank - domain.tp^2 - domain.tp + 1
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -704,7 +704,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank + domain.tp^2 - domain.tp + 1
+         otherRank = myRank + domain.m_tp^2 - domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -719,7 +719,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank - domain.tp^2 + domain.tp + 1
+         otherRank = myRank - domain.m_tp^2 + domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -734,7 +734,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank + domain.tp^2 + domain.tp - 1
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -749,7 +749,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank - domain.tp^2 + domain.tp + 1
+         otherRank = myRank - domain.m_tp^2 + domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
@@ -764,7 +764,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank + domain.tp^2 + domain.tp + 1
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
