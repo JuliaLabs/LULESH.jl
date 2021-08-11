@@ -7,6 +7,9 @@ Enzyme.API.printperf!(true)
 Enzyme.API.printall!(true)
 Enzyme.API.instname!(true)
 
+Enzyme.API.inlineall!(true)
+# Enzyme.API.jl_as!(true)
+
 function main(nx, structured, num_iters, mpi, cuda)
     # TODO: change default nr to 11
     nr = 1
