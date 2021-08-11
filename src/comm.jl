@@ -316,9 +316,124 @@ end
 
 function commMonoQ(domain::Domain)
    if domain.comm === nothing
-      return
+       return
    end
-   error("not implemented")
+
+   xferFields = 3 # delv_xi, delv_eta, delv_zeta
+   fields = (domain.delv_xi, domain.delv_eta, domain.delv_zeta)
+   maxPlaneComm = xferFields * domain.maxPlaneSize
+
+   pmsg = 0 # plane comm msg
+   dx = domain.sizeX
+   dy = domain.sizeY
+   dz = domain.sizeZ
+
+   # assume communication to 6 neighbors by default
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = connect(domain)
+
+   numElem = domain.numElem
+
+   # point into ghost data area
+   fieldOffsets = [numElem, numElem, numElem]
+
+   myRank = MPI.Comm_rank(domain.comm)
+
+   if planeMin || planeMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE */
+      opCount = dx * dy
+
+      if planeMin
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+      if planeMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if rowMin || rowMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dx * dz
+
+      if rowMin
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+
+      if rowMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+   end
+   if colMin || colMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dy * dz
+
+      if colMin
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+      if colMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+   end
+   return nothing
 end
 
 function commSyncPosVel(domain::Domain)
