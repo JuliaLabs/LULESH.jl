@@ -1775,6 +1775,7 @@ end
 function applyAccelerationBoundaryConditionsForNodes(domain::Domain)
 
   numNodeBC = (domain.sizeX+1)*(domain.sizeX+1)
+  @show domain.symmX
   for i in 1:numNodeBC
     domain.xdd[domain.symmX[i]+1] = 0.0
   end
