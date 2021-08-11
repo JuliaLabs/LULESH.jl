@@ -11,7 +11,7 @@ function  get_neighbors(domain::Domain)
    return rowMin, rowMax, colMin, colMax, planeMin, planeMax
 end
 
-copyto_zero!(dest, doffs, src, soffs, nelems) = copyto_zero!(dest, doffs+1, src, soffs+1, nelems)
+copyto_zero!(dest, doffs, src, soffs, nelems) = copyto!(dest, doffs+1, src, soffs+1, nelems)
 
 # Assume 128 byte coherence
 # Assume Float64 is an "integral power of 2" bytes wide
@@ -42,6 +42,15 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    function irecv!(fromProc, offset, recvCount)
       idx = offset + 1
       data = view(domain.commDataRecv, idx:(idx+recvCount))
+      if fromProc < 0 || fromProc > MPI.Comm_size(domain.comm) - 1
+         @show MPI.Comm_rank(domain.comm)
+         if MPI.Comm_rank(domain.comm) == 0
+            @show fromProc
+            showerror(stderr, ErrorException("Rank"), catch_backtrace())
+         end
+      #   if MPI.Comm_rank(domain.comm) == 0
+      #   end
+      end
       return MPI.Irecv!(data, fromProc, msgType, domain.comm)
    end
 
@@ -111,7 +120,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          emsg += 1
       end
 
-      if rowMin && colMax && doRecv
+      if rowMin && planeMin && doRecv
          fromProc = myRank - domain.m_tp^2 - domain.m_tp
          recvCount = dx * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
@@ -147,7 +156,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          emsg += 1
       end
 
-      if colMin && planeMax
+      if colMax && planeMax
          fromProc = myRank + domain.m_tp^2 + 1
          recvCount = dy * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
@@ -183,7 +192,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          emsg += 1
       end
 
-      if rowMax && colMax && doRecv
+      if rowMin && colMax && doRecv
          fromProc = myRank - domain.m_tp + 1
          recvCount = dz * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
@@ -576,7 +585,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
-         otherRank = myRank - domain.m_tp^2 - domain.m_tp
+         otherRank = myRank + domain.m_tp^2 - domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -593,7 +602,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
-         otherRank = myRank - domain.m_tp^2 - 1
+         otherRank = myRank + domain.m_tp^2 - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
@@ -804,7 +813,7 @@ function commSBN(domain::Domain, fields)
          status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
          for field in fields
             for i in 1:opCount
-               field[i] += domain.commDataRecv[srcAddr+i]
+               field[i] += domain.commDataRecv[srcaddr+i]
             end
             srcaddr += opCount
          end
@@ -815,12 +824,11 @@ function commSBN(domain::Domain, fields)
          status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
          for field in fields
             for i in 1:opCount
-               field[dx*dy*(dz-1) + i] += domain.commDataRecv[srcAddr+i]
+               field[dx*dy*(dz-1) + i] += domain.commDataRecv[srcaddr+i]
             end
             srcaddr += opCount
          end
          pmsg += 1
-         waitRecv!(opCount, dx*dy*(dz-1))
       end
    end
 
@@ -833,13 +841,12 @@ function commSBN(domain::Domain, fields)
          for field in fields
             for i in 0:(dz-1)
                for j in 0:(dx-1)
-                  field[i*dx*dy + j + 1] += domain.commDataRecv[srcAddr + i*dx + j + 1]
+                  field[i*dx*dy + j + 1] += domain.commDataRecv[srcaddr + i*dx + j + 1]
                end
             end
             srcaddr += opCount
          end
          pmsg += 1
-         waitRecv!(opCount, dx*dy*(dz-1))
       end
 
       if rowMax
@@ -848,7 +855,7 @@ function commSBN(domain::Domain, fields)
          for field in fields
             for i in 0:(dz-1)
                for j in 0:(dx-1)
-                  field[dx*(dy-1) + i*dx*dy + j + 1] += domain.commDataRecv[srcAddr + i*dx + j + 1]
+                  field[dx*(dy-1) + i*dx*dy + j + 1] += domain.commDataRecv[srcaddr + i*dx + j + 1]
                end
             end
             srcaddr += opCount
@@ -866,7 +873,7 @@ function commSBN(domain::Domain, fields)
          for field in fields
             for i in 0:(dz-1)
                for j in 0:(dy-1)
-                  field[i*dx*dy + j*dx + 1] += domain.commDataRecv[srcAddr + i*dy + j + 1]
+                  field[i*dx*dy + j*dx + 1] += domain.commDataRecv[srcaddr + i*dy + j + 1]
                end
             end
             srcaddr += opCount
@@ -880,7 +887,7 @@ function commSBN(domain::Domain, fields)
          for field in fields
             for i in 0:(dz-1)
                for j in 0:(dy-1)
-                  field[dx - 1 + i*dx*dy + j*dx + 1] += domain.commDataRecv[srcAddr + i*dy + j + 1]
+                  field[dx - 1 + i*dx*dy + j*dx + 1] += domain.commDataRecv[srcaddr + i*dy + j + 1]
                end
             end
             srcaddr += opCount
@@ -890,157 +897,157 @@ function commSBN(domain::Domain, fields)
    end
 
    if rowMin && colMin
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dz-1)
-            # (domain.*dest)(i*dx*dy) += srcAddr[i] ;
-            field[i*dx*dy + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(i*dx*dy) += srcaddr[i] ;
+            field[i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dz
+         srcaddr += dz
       end
       emsg += 1
    end
 
    if rowMin && planeMin
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dx-1)
-            # (domain.*dest)(i) += srcAddr[i] ;
-            field[i + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(i) += srcaddr[i] ;
+            field[i + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dx
+         srcaddr += dx
       end
       emsg += 1
    end
 
    if colMin && planeMin
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dy-1)
-            # (domain.*dest)(i*dx) += srcAddr[i] ;
-            field[i*dx + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(i*dx) += srcaddr[i] ;
+            field[i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dy
+         srcaddr += dy
       end
       emsg += 1
    end
 
    if rowMax && colMax
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dz-1)
-            # (domain.*dest)(dx*dy - 1 + i*dx*dy) += srcAddr[i] ;
-            field[dx*dy - 1 + i*dx*dy + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*dy - 1 + i*dx*dy) += srcaddr[i] ;
+            field[dx*dy - 1 + i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dz
+         srcaddr += dz
       end
       emsg += 1
    end
 
    if rowMax && planeMax
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dx-1)
-            # (domain.*dest)(dx*(dy-1) + dx*dy*(dz-1) + i) += srcAddr[i] ;
-            field[dx*(dy-1) + dx*dy*(dz-1) + i + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*(dy-1) + dx*dy*(dz-1) + i) += srcaddr[i] ;
+            field[dx*(dy-1) + dx*dy*(dz-1) + i + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dx
+         srcaddr += dx
       end
       emsg += 1
    end
 
    if colMax && planeMax
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dy-1)
-            # (domain.*dest)(dx*dy*(dz-1) + dx - 1 + i*dx) += srcAddr[i] ;
-            field[dx*dy*(dz-1) + dx - 1 + i*dx + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*dy*(dz-1) + dx - 1 + i*dx) += srcaddr[i] ;
+            field[dx*dy*(dz-1) + dx - 1 + i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dy
+         srcaddr += dy
       end
       emsg += 1
    end
 
    if rowMax && colMin
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dz-1)
-            # (domain.*dest)(dx*(dy-1) + i*dx*dy) += srcAddr[i] ;
-            field[dx*(dy-1) + i*dx*dy + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*(dy-1) + i*dx*dy) += srcaddr[i] ;
+            field[dx*(dy-1) + i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dz
+         srcaddr += dz
       end
       emsg += 1
    end
 
    if rowMin && planeMax
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dx-1)
-            # (domain.*dest)(dx*dy*(dz-1) + i) += srcAddr[i] ;
-            field[dx*dy*(dz-1) + i + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*dy*(dz-1) + i) += srcaddr[i] ;
+            field[dx*dy*(dz-1) + i + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dx
+         srcaddr += dx
       end
       emsg += 1
    end
 
    if colMin && planeMax
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dy-1)
-            # (domain.*dest)(dx*dy*(dz-1) + i*dx) += srcAddr[i] ;
-            field[dx*dy*(dz-1) + i*dx + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*dy*(dz-1) + i*dx) += srcaddr[i] ;
+            field[dx*dy*(dz-1) + i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dy
+         srcaddr += dy
       end
       emsg += 1
    end
 
    if rowMin && colMax
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dz-1)
-            # (domain.*dest)(dx - 1 + i*dx*dy) += srcAddr[i] ;
-            field[dx - 1 + i*dx*dy + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx - 1 + i*dx*dy) += srcaddr[i] ;
+            field[dx - 1 + i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dz
+         srcaddr += dz
       end
       emsg += 1
    end
 
    if rowMax && planeMin
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dx-1)
-            # (domain.*dest)(dx*(dy - 1) + i) += srcAddr[i] ;
-            field[dx*(dy-1) + i + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx*(dy - 1) + i) += srcaddr[i] ;
+            field[dx*(dy-1) + i + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dx
+         srcaddr += dx
       end
       emsg += 1
    end
 
    if colMax && planeMin
-      srcAddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
       status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
       for field in fields
          for i in 0:(dy-1)
-            # (domain.*dest)(dx - 1 + i*dx) += srcAddr[i] ;
-            field[dx - 1 + i*dx + 1] += domain.commDataRecv[srcAddr + i + 1]
+            # (domain.*dest)(dx - 1 + i*dx) += srcaddr[i] ;
+            field[dx - 1 + i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
          end
-         srcAddr += dy
+         srcaddr += dy
       end
       emsg += 1
    end
