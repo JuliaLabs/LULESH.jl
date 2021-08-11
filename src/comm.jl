@@ -719,7 +719,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
          src = view(domain.commDataSend, idx:(idx+xferFields))
-         otherRank = myRank - domain.tp^2 + domain.tp + 1
+         otherRank = myRank - domain.tp^2 + domain.tp - 1
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
