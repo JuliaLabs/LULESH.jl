@@ -3031,7 +3031,6 @@ function calcHydroConstraintForElems(domain::Domain)
     end
 
     if hydro_elem != -1
-        domain.dthydro = dthydro
         domain.dthydro_h = dthydro
     end
     return nothing
