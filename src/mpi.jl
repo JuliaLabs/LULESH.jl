@@ -40,21 +40,21 @@ function setupCommBuffers!(domain::Domain, edgeNodes::Int)
             (m_rowMax & m_colMax & m_planeMax))
             )
 
-    domain.commDataSend = Vector{Float64}(undef, comBufSize)
-    domain.commDataRecv = Vector{Float64}(undef, comBufSize)
+    commDataSend = Vector{Float64}(undef, comBufSize)
+    commDataRecv = Vector{Float64}(undef, comBufSize)
     # prevent floating point exceptions
-    fill!(domain.commDataSend, 0)
-    fill!(domain.commDataRecv, 0)
+    fill!(commDataSend, 0)
+    fill!(commDataRecv, 0)
 
     # Boundary nodesets
     if (m_colLoc == 0)
-        resize!(domain.symmX, edgeNodes*edgeNodes)
+        resize!(symmX, edgeNodes*edgeNodes)
     end
     if (m_rowLoc == 0)
-        resize!(domain.symmY, edgeNodes*edgeNodes)
+        resize!(symmY, edgeNodes*edgeNodes)
     end
     if (m_planeLoc == 0)
-        resize!(domain.symmZ, edgeNodes*edgeNodes)
+        resize!(symmZ, edgeNodes*edgeNodes)
     end
     @pack_Domain! domain
 end

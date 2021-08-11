@@ -2185,9 +2185,9 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
                                         ptiny,
                                         elength
                                     )
-
     for ielem in 1:elength
         i = domain.matElemlist[ielem]
+        @show i
         bcMask = domain.elemBC[i]
 
     #   phixi
@@ -2205,6 +2205,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
             error("Error")
         end
 
+        @show bcMask
         case = bcMask & XI_P
         if case == 0
             delvp = domain.delv_xi[domain.lxip[i]]

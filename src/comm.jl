@@ -34,7 +34,10 @@ function commRecv(
       # contiguous memory
       fromRank = myRank - domain.m_tp*domain.m_tp
       recvCount = dx * dy * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm:pmsg * maxPlaneComm + recvCount]
+      @show length(domain.commDataRecv)
+      @show recvCount
+
+      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
       pmsg += 1
    end
@@ -42,7 +45,7 @@ function commRecv(
       # contiguous memory
        fromRank = myRank + domain.m_tp*domain.m_tp
        recvCount = dx * dy * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm:pmsg * maxPlaneComm + recvCount]
+      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
       pmsg += 1
    end
@@ -50,7 +53,7 @@ function commRecv(
       # semi-contiguous memory
        fromRank = myRank - domain.m_tp
        recvCount = dx * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm:pmsg * maxPlaneComm + recvCount]
+      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
       pmsg += 1
    end
@@ -58,7 +61,7 @@ function commRecv(
       # semi-contiguous memory
        fromRank = myRank + domain.m_tp
        recvCount = dx * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm:pmsg * maxPlaneComm + recvCount]
+      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
       pmsg += 1
    end
@@ -66,7 +69,7 @@ function commRecv(
       # scattered memory
        fromRank = myRank - 1
        recvCount = dy * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm:pmsg * maxPlaneComm + recvCount]
+      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
       pmsg += 1
    end
@@ -74,7 +77,7 @@ function commRecv(
       # scattered memory
        fromRank = myRank + 1
        recvCount = dy * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm:pmsg * maxPlaneComm + recvCount]
+      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
       domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
       pmsg += 1
    end
