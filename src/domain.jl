@@ -24,7 +24,7 @@ m_planeMin(domain::Domain) = (domain.m_planeLoc == 0)         ? false : true
 m_planeMax(domain::Domain) = (domain.m_planeLoc == domain.m_tp-1) ? false : true
 
 # host access
-get_nodalMass(idx::IndexT, dom::AbstractDomain) = dom.h_nodalMass[idx]
+get_nodalMass(idx::IndexT, dom::AbstractDomain) = dom.nodalMass[idx]
 
 colLoc(dom::AbstractDomain) = dom.m_colLoc
 rowLoc(dom::AbstractDomain) = dom.m_rowLoc
@@ -468,7 +468,6 @@ function Domain(prob::LuleshProblem)
     VDF = prob.devicetype{prob.floattype}
     VDI = prob.devicetype{IndexT}
     VDInt = prob.devicetype{Int}
-    numRanks = getNumRanks(prob.comm)
     colLoc = prob.col
     rowLoc = prob.row
     planeLoc = prob.plane
@@ -479,7 +478,7 @@ function Domain(prob::LuleshProblem)
     balance = prob.balance
     cost = prob.cost
     domain = Domain{prob.floattype}(
-        0, nothing,
+        prob.comm,
         VDI(), VDI(),
         VDI(), VDI(), VDI(), VDI(), VDI(), VDI(),
         VDInt(),
@@ -501,7 +500,7 @@ function Domain(prob::LuleshProblem)
         VDF(), VDF(), VDF(),
         VDF(), VDF(), VDF(),
         # FIXIT This is wrong
-        VDF(), Vector{prob.floattype}(),
+        VDF(),
         VDI(), VDI(), VDI(),
         VDInt(), VDInt(), VDI(),
         0.0, 0.0, 0.0, 0.0, 0.0, 0,
@@ -519,29 +518,13 @@ function Domain(prob::LuleshProblem)
         Vector{MPI.Request}(undef, 26), Vector{MPI.Request}(undef, 26)
     )
 
-    domain.max_streams = 32
-    # domain->streams.resize(domain->max_streams);
-    # TODO: CUDA stream stuff goes here
-    domain.streams = nothing
-
-# #   for (Int_t i=0;i<domain->max_streams;i++)
-# #     cudaStreamCreate(&(domain->streams[i]));
-
-# #   cudaEventCreateWithFlags(&domain->time_constraint_computed,cudaEventDisableTiming);
-
-#   Index_t domElems;
-#   Index_t domNodes;
-#   Index_t padded_domElems;
-
     nodelist = Vector{IndexT}()
     x = Vector{prob.floattype}()
     y = Vector{prob.floattype}()
     z = Vector{prob.floattype}()
 
     if structured
-
         domain.m_tp       = tp
-        # domain.m_numRanks = numRanks
 
         domain.m_colLoc   =   colLoc
         domain.m_rowLoc   =   rowLoc
@@ -565,7 +548,6 @@ function Domain(prob::LuleshProblem)
         # padded_domElems = domain.padded_numElem
 
         # Build domain object here. Not nice.
-
 
         allocateElemPersistent!(domain, domElems)
         allocateNodalPersistent!(domain, domNodes)
@@ -1614,21 +1596,20 @@ function calcVolumeForceForElems(domain::Domain)
 end
 
 function calcForceForNodes(domain::Domain)
-    # #if USE_MPI
-    #   CommRecv(*domain, MSG_COMM_SBN, 3,
-    #            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
-    #            true, false) ;
-    # #endif
+    commRecv(domain, MSG_COMM_SBN, 3,
+             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+             true, false)
+
     domain.fx .= 0.0
     domain.fy .= 0.0
     domain.fz .= 0.0
 
     calcVolumeForceForElems(domain);
-
-    #   moved here from the main loop to allow async execution with GPU work
-    # FIXIT not sure this belongs here now
-    # TimeIncrement(domain);
-
+    fields = (domain.fx, domain.fy, domain.fz)
+    commSend(domain, MSG_COMM_SBN, fields,
+             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+             true, false)
+    commSBN(domain, fields)
 end
 
 function calcAccelerationForNodes(domain::Domain)
@@ -1677,18 +1658,13 @@ function calcVelocityForNodes(domain::Domain, dt, u_cut)
     end
 end
 
-
 function calcPositionForNodes(domain::Domain, dt)
     domain.x .= domain.x .+ domain.xd .* dt
     domain.y .= domain.y .+ domain.yd .* dt
     domain.z .= domain.z .+ domain.zd .* dt
 end
 
-
 function lagrangeNodal(domain::Domain)
-# #ifdef SEDOV_SYNC_POS_VEL_EARLY
-#    Domain_member fieldData[6] ;
-# #endif
     delt = domain.deltatime
 
     u_cut = domain.u_cut
@@ -1696,13 +1672,11 @@ function lagrangeNodal(domain::Domain)
     # acceleration boundary conditions.
     calcForceForNodes(domain)
 
-# #if USE_MPI
-# #ifdef SEDOV_SYNC_POS_VEL_EARLY
-#    CommRecv(*domain, MSG_SYNC_POS_VEL, 6,
-#             domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
-#             false, false) ;
-# #endif
-# #endif
+    if SEDOV_SYNC_POS_VEL_EARLY
+        commRecv(domain, MSG_SYNC_POS_VEL, 6,
+                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                 false, false)
+    end
 
     calcAccelerationForNodes(domain)
 
@@ -1711,30 +1685,14 @@ function lagrangeNodal(domain::Domain)
     calcVelocityForNodes(domain, delt, u_cut)
     calcPositionForNodes(domain, delt)
 
-# #if USE_MPI
-# #ifdef SEDOV_SYNC_POS_VEL_EARLY
-#   // initialize pointers
-#   domain->d_x = domain->x.raw();
-#   domain->d_y = domain->y.raw();
-#   domain->d_z = domain->z.raw();
+    if SEDOV_SYNC_POS_VEL_EARLY
+        fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+        commSend(domain, MSG_SYNC_POS_VEL, fields,
+                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                 false, false)
+        commSyncPosVel(domain)
+    end
 
-#   domain->d_xd = domain->xd.raw();
-#   domain->d_yd = domain->yd.raw();
-#   domain->d_zd = domain->zd.raw();
-
-#   fieldData[0] = &Domain::get_x ;
-#   fieldData[1] = &Domain::get_y ;
-#   fieldData[2] = &Domain::get_z ;
-#   fieldData[3] = &Domain::get_xd ;
-#   fieldData[4] = &Domain::get_yd ;
-#   fieldData[5] = &Domain::get_zd ;
-
-#   CommSendGpu(*domain, MSG_SYNC_POS_VEL, 6, fieldData,
-#            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
-#            false, false, domain->streams[2]) ;
-#   CommSyncPosVelGpu(*domain, &domain->streams[2]) ;
-# #endif
-# #endif
     return nothing
 end
 
@@ -2400,13 +2358,22 @@ function calcQForElems(domain::Domain)
     numElem = domain.numElem
 
     # MONOTONIC Q option
-
+    commRecv(domain, MSG_MONOQ, 3,
+             domain.sizeX, domain.sizeY, domain.sizeZ,
+             true, true)
 
     # Calculate velocity gradients
     calcMonotonicQGradientsForElems(domain)
 
     # Transfer veloctiy gradients in the first order elements
     # problem->commElements->Transfer(CommElements::monoQ)
+
+    fields = (domain.delv_xi, domain.delv_eta, domain.delv_zeta)
+    commSend(domain, MSG_MONOQ, fields,
+             domain.sizeX, domain.sizeY, domain.sizeZ,
+             true, true)
+    commMonoQ(domain)
+
     calcMonotonicQForElems(domain)
 
     # Don't allow excessive artificial viscosity
@@ -2420,6 +2387,9 @@ function calcQForElems(domain::Domain)
         end
 
         if idx >= 0
+            if domain.comm !== nothing
+                MPI.Abort(MPI.COMM_WORLD, 1)
+            end
             error("QStopError")
         end
     end
