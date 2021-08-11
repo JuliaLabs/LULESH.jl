@@ -1,7 +1,5 @@
 @with_kw mutable struct Domain{FT}
-    # Something CUDA
-    max_streams::IndexT
-    streams::Nothing
+    comm::Union{MPI.Comm, Nothing}
 
     # Elem-centered
     matElemlist::VD{IndexT} # material indexset
@@ -77,25 +75,7 @@
     dfz::VD{FT}
 
     nodalMass::VD{FT}     # mass g
-    h_nodalMass::Vector{FT}     # mass - host g
 
-    # device pointers for comms g
-    # TODO: Not sure how to store the pointers or if even necessary
-    # Real_t *d_delv_xi       # velocity gradient -- temporary g
-    # Real_t *d_delv_eta
-    # Real_t *d_delv_zeta
-
-    # Real_t *d_x             # coordinates g
-    # Real_t *d_y
-    # Real_t *d_z
-
-    # Real_t *d_xd            # velocities g
-    # Real_t *d_yd
-    # Real_t *d_zd
-
-    # Real_t *d_fx            # forces g
-    # Real_t *d_fy
-    # Real_t *d_fz
     # Boundary nodesets
 
     symmX::VD{IndexT}      # symmetry plane nodesets
@@ -180,15 +160,6 @@
     regNumList::VD{IndexT}         # Region number per domain element
     regElemlist::VD{IndexT}        # region indexset
     regSorted::VD{IndexT}          # keeps index of sorted regions
-
-
-    # MPI-Related additional data
-
-    # TODO I think we can handle this differently
-
-    # IndexT m_numRanks;
-    # IndexT& numRanks() { return m_numRanks ; }
-
 
     # # Used in setup
     m_rowMin::IndexT

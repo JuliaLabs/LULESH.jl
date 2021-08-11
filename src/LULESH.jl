@@ -20,6 +20,10 @@ const MSG_SYNC_POS_VEL  = 2048
 const MSG_MONOQ         = 3072
 const MAX_FIELDS_PER_MPI_COMM = 6
 
+# Only supported configuration
+const SEDOV_SYNC_POS_VEL_EARLY = true
+const ALLOW_UNPACKED_PLANE = false
+
 struct LuleshProblem
     num_iters::Int
     structured::Bool
