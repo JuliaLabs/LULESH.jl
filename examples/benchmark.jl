@@ -70,13 +70,13 @@ function main(nx, structured, num_iters, mpi, cuda)
 
     # timestep to solution
     start = getWtime(prob.comm)
-    while domain.time_h < domain.stoptime
+    while domain.time < domain.stoptime
         # this has been moved after computation of volume forces to hide launch latencies
         timeIncrement!(domain)
         lagrangeLeapFrog(domain)
         # checkErrors(domain, its, myRank)
         if getMyRank(prob.comm) == 0
-            @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time_h, domain.deltatime_h)
+            @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time, domain.deltatime)
         end
         if domain.cycle >= num_iters
             break
