@@ -542,7 +542,7 @@ function commSend(domain::Domain, msgType, fields,
 
       if colMax && planeMax && doSend
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
-         srcOffset = dx*dy*(dz-1) + dx
+         srcOffset = dx*dy*(dz-1) + dx - 1
          for field in fields
             for i in 0:(dy-1)
                domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx + 1]
@@ -636,7 +636,7 @@ function commSend(domain::Domain, msgType, fields,
          end
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
-         otherRank = myRank + domain.m_tp^2 + domain.m_tp
+         otherRank = myRank - domain.m_tp^2 + domain.m_tp
          req = MPI.Isend(src, otherRank, msgType, domain.comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1

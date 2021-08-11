@@ -76,8 +76,6 @@ function initMeshDecomp(comm)
         error("error -- must have as many domains as procs\n") ;
     end
     remainder = (dx*dy*dz) % numRanks
-    @show remainder
-    @show remainder, dx*dy*dz, numRanks
     myDom = Int(0)
     if (myRank < remainder)
         myDom = myRank*( 1+ (div(dx*dy*dz, numRanks)))
@@ -86,13 +84,9 @@ function initMeshDecomp(comm)
          (myRank - remainder)*(div(dx*dy*dz, numRanks))
     end
    col = myDom % dx
-   @show col, myDom, dx
    row = div(myDom, dx) % dy
-   @show row, div(myDom,dx), dy
    plane = div(myDom, (dx*dy))
-   @show plane
    side = testProcs
-   @show side
 
    return col, row, plane, side
 end
