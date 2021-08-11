@@ -1128,8 +1128,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
     end
 end
 
-function collectDomainNodesToElemNodes(domain::Domain, elemX, elemY, elemZ, i)
-
+@inline function collectDomainNodesToElemNodes(domain::Domain, i)
     nd0i = domain.nodelist[i]
     nd1i = domain.nodelist[i+1]
     nd2i = domain.nodelist[i+2]
@@ -1139,43 +1138,48 @@ function collectDomainNodesToElemNodes(domain::Domain, elemX, elemY, elemZ, i)
     nd6i = domain.nodelist[i+6]
     nd7i = domain.nodelist[i+7]
 
-    elemX[1] = domain.x[nd0i]
-    elemX[2] = domain.x[nd1i]
-    elemX[3] = domain.x[nd2i]
-    elemX[4] = domain.x[nd3i]
-    elemX[5] = domain.x[nd4i]
-    elemX[6] = domain.x[nd5i]
-    elemX[7] = domain.x[nd6i]
-    elemX[8] = domain.x[nd7i]
+    elemX = SVector(
+        domain.x[nd0i],
+        domain.x[nd1i],
+        domain.x[nd2i],
+        domain.x[nd3i],
+        domain.x[nd4i],
+        domain.x[nd5i],
+        domain.x[nd6i],
+        domain.x[nd7i],
+    )
 
-    elemY[1] = domain.y[nd0i]
-    elemY[2] = domain.y[nd1i]
-    elemY[3] = domain.y[nd2i]
-    elemY[4] = domain.y[nd3i]
-    elemY[5] = domain.y[nd4i]
-    elemY[6] = domain.y[nd5i]
-    elemY[7] = domain.y[nd6i]
-    elemY[8] = domain.y[nd7i]
+    elemY = SVector(
+        domain.y[nd0i],
+        domain.y[nd1i],
+        domain.y[nd2i],
+        domain.y[nd3i],
+        domain.y[nd4i],
+        domain.y[nd5i],
+        domain.y[nd6i],
+        domain.y[nd7i],
+    )
 
-    elemZ[1] = domain.z[nd0i]
-    elemZ[2] = domain.z[nd1i]
-    elemZ[3] = domain.z[nd2i]
-    elemZ[4] = domain.z[nd3i]
-    elemZ[5] = domain.z[nd4i]
-    elemZ[6] = domain.z[nd5i]
-    elemZ[7] = domain.z[nd6i]
-    elemZ[8] = domain.z[nd7i]
+    elemZ = SVector(
+       domain.z[nd0i],
+       domain.z[nd1i],
+       domain.z[nd2i],
+       domain.z[nd3i],
+       domain.z[nd4i],
+       domain.z[nd5i],
+       domain.z[nd6i],
+       domain.z[nd7i],
+    )
 
+    return elemX, elemY, elemZ
 end
-function voluDer(x0, x1, x2,
+
+@inline function voluDer(x0, x1, x2,
                    x3, x4, x5,
                    y0, y1, y2,
                    y3, y4, y5,
                    z0, z1, z2,
-                   z3, z4, z5,
-                   dvdx, dvdy, dvdz )
-
-    twelfth = 1.0 / 12.0
+                   z3, z4, z5)
 
     dvdx =
         (y1 + y2) * (z0 + z1) - (y0 + y1) * (z1 + z2) +
@@ -1192,242 +1196,266 @@ function voluDer(x0, x1, x2,
         (y0 + y4) * (x3 + x4) + (y3 + y4) * (x0 + x4) +
         (y2 + y5) * (x3 + x5) - (y3 + y5) * (x2 + x5)
 
+    twelfth = 1.0 / 12.0
+
     dvdx = dvdx * twelfth
     dvdy = dvdy * twelfth
     dvdz = dvdz * twelfth
+
+    return dvdx, dvdy, dvdz
 end
 
-function calcElemVolumeDerivative(dvdx,dvdy,dvdz, x, y, z)
+@inline function calcElemVolumeDerivative(x, y, z)
 
-    voluDer(x[2], x[3], x[4], x[5], x[6], x[8],
-                y[2], y[3], y[4], y[5], y[6], y[8],
-                z[2], z[3], z[4], z[5], z[6], z[8],
-                dvdx[1], dvdy[1], dvdz[1])
-    voluDer(x[1], x[2], x[3], x[8], x[5], x[7],
-                y[1], y[2], y[3], y[8], y[5], y[7],
-                z[1], z[2], z[3], z[8], z[5], z[7],
-                dvdx[4], dvdy[4], dvdz[4])
-    voluDer(x[4], x[1], x[2], x[7], x[8], x[6],
-                y[4], y[1], y[2], y[7], y[8], y[6],
-                z[4], z[1], z[2], z[7], z[8], z[6],
-                dvdx[3], dvdy[3], dvdz[3])
-    voluDer(x[3], x[4], x[1], x[6], x[7], x[5],
-                y[3], y[4], y[1], y[6], y[7], y[5],
-                z[3], z[4], z[1], z[6], z[7], z[5],
-                dvdx[2], dvdy[2], dvdz[2])
-    voluDer(x[8], x[7], x[6], x[1], x[4], x[2],
-                y[8], y[7], y[6], y[1], y[4], y[2],
-                z[8], z[7], z[6], z[1], z[4], z[2],
-                dvdx[5], dvdy[5], dvdz[5])
-    voluDer(x[5], x[8], x[7], x[2], x[1], x[3],
-                y[5], y[8], y[7], y[2], y[1], y[3],
-                z[5], z[8], z[7], z[2], z[1], z[3],
-                dvdx[6], dvdy[6], dvdz[6])
-    voluDer(x[6], x[5], x[8], x[3], x[2], x[4],
-                y[6], y[5], y[8], y[3], y[2], y[4],
-                z[6], z[5], z[8], z[3], z[2], z[4],
-                dvdx[7], dvdy[7], dvdz[7])
-    voluDer(x[7], x[6], x[5], x[4], x[3], x[1],
-                y[7], y[6], y[5], y[4], y[3], y[1],
-                z[7], z[6], z[5], z[4], z[3], z[1],
-                dvdx[8], dvdy[8], dvdz[8])
+    dvdx1, dvdy1, dvdz1 = voluDer(
+        x[2], x[3], x[4], x[5], x[6], x[8],
+        y[2], y[3], y[4], y[5], y[6], y[8],
+        z[2], z[3], z[4], z[5], z[6], z[8])
+
+    dvdx2, dvdy2, dvdz2 = voluDer(
+        x[1], x[2], x[3], x[8], x[5], x[7],
+        y[1], y[2], y[3], y[8], y[5], y[7],
+        z[1], z[2], z[3], z[8], z[5], z[7])
+
+    dvdx3, dvdy3, dvdz3 = voluDer(
+        x[4], x[1], x[2], x[7], x[8], x[6],
+        y[4], y[1], y[2], y[7], y[8], y[6],
+        z[4], z[1], z[2], z[7], z[8], z[6])
+
+    dvdx4, dvdy4, dvdz4 = voluDer(
+        x[3], x[4], x[1], x[6], x[7], x[5],
+        y[3], y[4], y[1], y[6], y[7], y[5],
+        z[3], z[4], z[1], z[6], z[7], z[5])
+
+    dvdx5, dvdy5, dvdz5 = voluDer(
+        x[8], x[7], x[6], x[1], x[4], x[2],
+        y[8], y[7], y[6], y[1], y[4], y[2],
+        z[8], z[7], z[6], z[1], z[4], z[2])
+
+    dvdx6, dvdy6, dvdz6 = voluDer(
+        x[5], x[8], x[7], x[2], x[1], x[3],
+        y[5], y[8], y[7], y[2], y[1], y[3],
+        z[5], z[8], z[7], z[2], z[1], z[3])
+
+    dvdx7, dvdy7, dvdz7 = voluDer(
+        x[6], x[5], x[8], x[3], x[2], x[4],
+        y[6], y[5], y[8], y[3], y[2], y[4],
+        z[6], z[5], z[8], z[3], z[2], z[4])
+
+    dvdx8, dvdy8, dvdz8 = voluDer(
+        x[7], x[6], x[5], x[4], x[3], x[1],
+        y[7], y[6], y[5], y[4], y[3], y[1],
+        z[7], z[6], z[5], z[4], z[3], z[1])
+
+    dvdx = SVector(dvdx1, dvdx2, dvdx3, dvdx4, dvdx5, dvdx6, dvdx7, dvdx8)
+    dvdy = SVector(dvdy1, dvdy2, dvdy3, dvdy4, dvdy5, dvdy6, dvdy7, dvdy8)
+    dvdz = SVector(dvdz1, dvdz2, dvdz3, dvdz4, dvdz5, dvdz6, dvdz7, dvdz8)
+
+    return dvdx, dvdy, dvdz
 end
 
-function calcElemFBHourglassForce(xd, yd, zd,
-                                    hourgam0, hourgam1,
-                                    hourgam2, hourgam3,
-                                    hourgam4, hourgam5,
-                                    hourgam6, hourgam7,
-                                    coefficient, hgfx,
-                                    hgfy, hgfz          )
+@inline function calcElemFBHourglassForce(xd, yd, zd,
+                                  hourgam0, hourgam1,
+                                  hourgam2, hourgam3,
+                                  hourgam4, hourgam5,
+                                  hourgam6, hourgam7,
+                                  coefficient)
+    i00 = 1
+    i01 = 2
+    i02 = 3
+    i03 = 4
+    @inbounds begin
+    h00 = (
+      hourgam0[i00] * xd[1] + hourgam1[i00] * xd[2] +
+      hourgam2[i00] * xd[3] + hourgam3[i00] * xd[4] +
+      hourgam4[i00] * xd[5] + hourgam5[i00] * xd[6] +
+      hourgam6[i00] * xd[7] + hourgam7[i00] * xd[8]
+    )
 
-  i00 = 1
-  i01 = 2
-  i02 = 3
-  i03 = 4
+    h01 = (
+      hourgam0[i01] * xd[1] + hourgam1[i01] * xd[2] +
+      hourgam2[i01] * xd[3] + hourgam3[i01] * xd[4] +
+      hourgam4[i01] * xd[5] + hourgam5[i01] * xd[6] +
+      hourgam6[i01] * xd[7] + hourgam7[i01] * xd[8]
+    )
 
+    h02 = (
+      hourgam0[i02] * xd[1] + hourgam1[i02] * xd[2] +
+      hourgam2[i02] * xd[3] + hourgam3[i02] * xd[4] +
+      hourgam4[i02] * xd[5] + hourgam5[i02] * xd[6] +
+      hourgam6[i02] * xd[7] + hourgam7[i02] * xd[8]
+    )
 
-  h00 = (
-    hourgam0[i00] * xd[1] + hourgam1[i00] * xd[2] +
-    hourgam2[i00] * xd[3] + hourgam3[i00] * xd[4] +
-    hourgam4[i00] * xd[5] + hourgam5[i00] * xd[6] +
-    hourgam6[i00] * xd[7] + hourgam7[i00] * xd[8]
-  )
+    h03 = (
+      hourgam0[i03] * xd[1] + hourgam1[i03] * xd[2] +
+      hourgam2[i03] * xd[3] + hourgam3[i03] * xd[4] +
+      hourgam4[i03] * xd[5] + hourgam5[i03] * xd[6] +
+      hourgam6[i03] * xd[7] + hourgam7[i03] * xd[8]
+    )
 
-  h01 = (
-    hourgam0[i01] * xd[1] + hourgam1[i01] * xd[2] +
-    hourgam2[i01] * xd[3] + hourgam3[i01] * xd[4] +
-    hourgam4[i01] * xd[5] + hourgam5[i01] * xd[6] +
-    hourgam6[i01] * xd[7] + hourgam7[i01] * xd[8]
-  )
+    hgfx1 = coefficient *
+     (hourgam0[i00] * h00 + hourgam0[i01] * h01 +
+      hourgam0[i02] * h02 + hourgam0[i03] * h03)
 
-  h02 = (
-    hourgam0[i02] * xd[1] + hourgam1[i02] * xd[2] +
-    hourgam2[i02] * xd[3] + hourgam3[i02] * xd[4] +
-    hourgam4[i02] * xd[5] + hourgam5[i02] * xd[6] +
-    hourgam6[i02] * xd[7] + hourgam7[i02] * xd[8]
-  )
+    hgfx2 = coefficient *
+     (hourgam1[i00] * h00 + hourgam1[i01] * h01 +
+      hourgam1[i02] * h02 + hourgam1[i03] * h03)
 
-  h03 = (
-    hourgam0[i03] * xd[1] + hourgam1[i03] * xd[2] +
-    hourgam2[i03] * xd[3] + hourgam3[i03] * xd[4] +
-    hourgam4[i03] * xd[5] + hourgam5[i03] * xd[6] +
-    hourgam6[i03] * xd[7] + hourgam7[i03] * xd[8]
-  )
+    hgfx3 = coefficient *
+     (hourgam2[i00] * h00 + hourgam2[i01] * h01 +
+      hourgam2[i02] * h02 + hourgam2[i03] * h03)
 
-  hgfx[1] = coefficient *
-   (hourgam0[i00] * h00 + hourgam0[i01] * h01 +
-    hourgam0[i02] * h02 + hourgam0[i03] * h03)
+    hgfx4 = coefficient *
+     (hourgam3[i00] * h00 + hourgam3[i01] * h01 +
+      hourgam3[i02] * h02 + hourgam3[i03] * h03)
 
-  hgfx[2] = coefficient *
-   (hourgam1[i00] * h00 + hourgam1[i01] * h01 +
-    hourgam1[i02] * h02 + hourgam1[i03] * h03)
+    hgfx5 = coefficient *
+     (hourgam4[i00] * h00 + hourgam4[i01] * h01 +
+      hourgam4[i02] * h02 + hourgam4[i03] * h03)
 
-  hgfx[3] = coefficient *
-   (hourgam2[i00] * h00 + hourgam2[i01] * h01 +
-    hourgam2[i02] * h02 + hourgam2[i03] * h03)
+    hgfx6 = coefficient *
+     (hourgam5[i00] * h00 + hourgam5[i01] * h01 +
+      hourgam5[i02] * h02 + hourgam5[i03] * h03)
 
-  hgfx[4] = coefficient *
-   (hourgam3[i00] * h00 + hourgam3[i01] * h01 +
-    hourgam3[i02] * h02 + hourgam3[i03] * h03)
+    hgfx7 = coefficient *
+     (hourgam6[i00] * h00 + hourgam6[i01] * h01 +
+      hourgam6[i02] * h02 + hourgam6[i03] * h03)
 
-  hgfx[5] = coefficient *
-   (hourgam4[i00] * h00 + hourgam4[i01] * h01 +
-    hourgam4[i02] * h02 + hourgam4[i03] * h03)
+    hgfx8 = coefficient *
+     (hourgam7[i00] * h00 + hourgam7[i01] * h01 +
+      hourgam7[i02] * h02 + hourgam7[i03] * h03)
 
-  hgfx[6] = coefficient *
-   (hourgam5[i00] * h00 + hourgam5[i01] * h01 +
-    hourgam5[i02] * h02 + hourgam5[i03] * h03)
+    hgfx = SVector(hgfx1, hgfx2, hgfx3, hgfx4, hgfx5, hgfx6, hgfx7, hgfx8)
 
-  hgfx[7] = coefficient *
-   (hourgam6[i00] * h00 + hourgam6[i01] * h01 +
-    hourgam6[i02] * h02 + hourgam6[i03] * h03)
+    h00 = (
+      hourgam0[i00] * yd[1] + hourgam1[i00] * yd[2] +
+      hourgam2[i00] * yd[3] + hourgam3[i00] * yd[4] +
+      hourgam4[i00] * yd[5] + hourgam5[i00] * yd[6] +
+      hourgam6[i00] * yd[7] + hourgam7[i00] * yd[8]
+    )
 
-  hgfx[8] = coefficient *
-   (hourgam7[i00] * h00 + hourgam7[i01] * h01 +
-    hourgam7[i02] * h02 + hourgam7[i03] * h03)
+    h01 = (
+      hourgam0[i01] * yd[1] + hourgam1[i01] * yd[2] +
+      hourgam2[i01] * yd[3] + hourgam3[i01] * yd[4] +
+      hourgam4[i01] * yd[5] + hourgam5[i01] * yd[6] +
+      hourgam6[i01] * yd[7] + hourgam7[i01] * yd[8]
+    )
 
-  h00 = (
-    hourgam0[i00] * yd[1] + hourgam1[i00] * yd[2] +
-    hourgam2[i00] * yd[3] + hourgam3[i00] * yd[4] +
-    hourgam4[i00] * yd[5] + hourgam5[i00] * yd[6] +
-    hourgam6[i00] * yd[7] + hourgam7[i00] * yd[8]
-  )
+    h02 = (
+      hourgam0[i02] * yd[1] + hourgam1[i02] * yd[2]+
+      hourgam2[i02] * yd[3] + hourgam3[i02] * yd[4]+
+      hourgam4[i02] * yd[5] + hourgam5[i02] * yd[6]+
+      hourgam6[i02] * yd[7] + hourgam7[i02] * yd[8]
+    )
 
-  h01 = (
-    hourgam0[i01] * yd[1] + hourgam1[i01] * yd[2] +
-    hourgam2[i01] * yd[3] + hourgam3[i01] * yd[4] +
-    hourgam4[i01] * yd[5] + hourgam5[i01] * yd[6] +
-    hourgam6[i01] * yd[7] + hourgam7[i01] * yd[8]
-  )
-
-  h02 = (
-    hourgam0[i02] * yd[1] + hourgam1[i02] * yd[2]+
-    hourgam2[i02] * yd[3] + hourgam3[i02] * yd[4]+
-    hourgam4[i02] * yd[5] + hourgam5[i02] * yd[6]+
-    hourgam6[i02] * yd[7] + hourgam7[i02] * yd[8]
-  )
-
-  h03 = (
-    hourgam0[i03] * yd[1] + hourgam1[i03] * yd[2] +
-    hourgam2[i03] * yd[3] + hourgam3[i03] * yd[4] +
-    hourgam4[i03] * yd[5] + hourgam5[i03] * yd[6] +
-    hourgam6[i03] * yd[7] + hourgam7[i03] * yd[8]
-  )
-
-
-  hgfy[1] = coefficient *
-   (hourgam0[i00] * h00 + hourgam0[i01] * h01 +
-    hourgam0[i02] * h02 + hourgam0[i03] * h03)
-
-  hgfy[2] = coefficient *
-   (hourgam1[i00] * h00 + hourgam1[i01] * h01 +
-    hourgam1[i02] * h02 + hourgam1[i03] * h03)
-
-  hgfy[3] = coefficient *
-   (hourgam2[i00] * h00 + hourgam2[i01] * h01 +
-    hourgam2[i02] * h02 + hourgam2[i03] * h03)
-
-  hgfy[4] = coefficient *
-   (hourgam3[i00] * h00 + hourgam3[i01] * h01 +
-    hourgam3[i02] * h02 + hourgam3[i03] * h03)
-
-  hgfy[5] = coefficient *
-   (hourgam4[i00] * h00 + hourgam4[i01] * h01 +
-    hourgam4[i02] * h02 + hourgam4[i03] * h03)
-
-  hgfy[6] = coefficient *
-   (hourgam5[i00] * h00 + hourgam5[i01] * h01 +
-    hourgam5[i02] * h02 + hourgam5[i03] * h03)
-
-  hgfy[7] = coefficient *
-   (hourgam6[i00] * h00 + hourgam6[i01] * h01 +
-    hourgam6[i02] * h02 + hourgam6[i03] * h03)
-
-  hgfy[8] = coefficient *
-   (hourgam7[i00] * h00 + hourgam7[i01] * h01 +
-    hourgam7[i02] * h02 + hourgam7[i03] * h03)
-
-  h00 = (
-    hourgam0[i00] * zd[1] + hourgam1[i00] * zd[2] +
-    hourgam2[i00] * zd[3] + hourgam3[i00] * zd[4] +
-    hourgam4[i00] * zd[5] + hourgam5[i00] * zd[6] +
-    hourgam6[i00] * zd[7] + hourgam7[i00] * zd[8]
-  )
-
-  h01 = (
-    hourgam0[i01] * zd[1] + hourgam1[i01] * zd[2] +
-    hourgam2[i01] * zd[3] + hourgam3[i01] * zd[4] +
-    hourgam4[i01] * zd[5] + hourgam5[i01] * zd[6] +
-    hourgam6[i01] * zd[7] + hourgam7[i01] * zd[8]
-  )
-
-  h02 =(
-    hourgam0[i02] * zd[1] + hourgam1[i02] * zd[2]+
-    hourgam2[i02] * zd[3] + hourgam3[i02] * zd[4]+
-    hourgam4[i02] * zd[5] + hourgam5[i02] * zd[6]+
-    hourgam6[i02] * zd[7] + hourgam7[i02] * zd[8]
-  )
-
-  h03 = (
-    hourgam0[i03] * zd[1] + hourgam1[i03] * zd[2] +
-    hourgam2[i03] * zd[3] + hourgam3[i03] * zd[4] +
-    hourgam4[i03] * zd[5] + hourgam5[i03] * zd[6] +
-    hourgam6[i03] * zd[7] + hourgam7[i03] * zd[8]
-  )
+    h03 = (
+      hourgam0[i03] * yd[1] + hourgam1[i03] * yd[2] +
+      hourgam2[i03] * yd[3] + hourgam3[i03] * yd[4] +
+      hourgam4[i03] * yd[5] + hourgam5[i03] * yd[6] +
+      hourgam6[i03] * yd[7] + hourgam7[i03] * yd[8]
+    )
 
 
-  hgfz[1] = coefficient *
-   (hourgam0[i00] * h00 + hourgam0[i01] * h01 +
-    hourgam0[i02] * h02 + hourgam0[i03] * h03)
+    hgfy1 = coefficient *
+     (hourgam0[i00] * h00 + hourgam0[i01] * h01 +
+      hourgam0[i02] * h02 + hourgam0[i03] * h03)
 
-  hgfz[2] = coefficient *
-   (hourgam1[i00] * h00 + hourgam1[i01] * h01 +
-    hourgam1[i02] * h02 + hourgam1[i03] * h03)
+    hgfy2 = coefficient *
+     (hourgam1[i00] * h00 + hourgam1[i01] * h01 +
+      hourgam1[i02] * h02 + hourgam1[i03] * h03)
 
-  hgfz[3] = coefficient *
-   (hourgam2[i00] * h00 + hourgam2[i01] * h01 +
-    hourgam2[i02] * h02 + hourgam2[i03] * h03)
+    hgfy3 = coefficient *
+     (hourgam2[i00] * h00 + hourgam2[i01] * h01 +
+      hourgam2[i02] * h02 + hourgam2[i03] * h03)
 
-  hgfz[4] = coefficient *
-   (hourgam3[i00] * h00 + hourgam3[i01] * h01 +
-    hourgam3[i02] * h02 + hourgam3[i03] * h03)
+    hgfy4 = coefficient *
+     (hourgam3[i00] * h00 + hourgam3[i01] * h01 +
+      hourgam3[i02] * h02 + hourgam3[i03] * h03)
 
-  hgfz[5] = coefficient *
-   (hourgam4[i00] * h00 + hourgam4[i01] * h01 +
-    hourgam4[i02] * h02 + hourgam4[i03] * h03)
+    hgfy5 = coefficient *
+     (hourgam4[i00] * h00 + hourgam4[i01] * h01 +
+      hourgam4[i02] * h02 + hourgam4[i03] * h03)
 
-  hgfz[6] = coefficient *
-   (hourgam5[i00] * h00 + hourgam5[i01] * h01 +
-    hourgam5[i02] * h02 + hourgam5[i03] * h03)
+    hgfy6 = coefficient *
+     (hourgam5[i00] * h00 + hourgam5[i01] * h01 +
+      hourgam5[i02] * h02 + hourgam5[i03] * h03)
 
-  hgfz[7] = coefficient *
-   (hourgam6[i00] * h00 + hourgam6[i01] * h01 +
-    hourgam6[i02] * h02 + hourgam6[i03] * h03)
+    hgfy7 = coefficient *
+     (hourgam6[i00] * h00 + hourgam6[i01] * h01 +
+      hourgam6[i02] * h02 + hourgam6[i03] * h03)
 
-  hgfz[8] = coefficient *
-   (hourgam7[i00] * h00 + hourgam7[i01] * h01 +
-    hourgam7[i02] * h02 + hourgam7[i03] * h03)
+    hgfy8 = coefficient *
+     (hourgam7[i00] * h00 + hourgam7[i01] * h01 +
+      hourgam7[i02] * h02 + hourgam7[i03] * h03)
+
+    hgfy = SVector(hgfy1, hgfy2, hgfy3, hgfy4, hgfy5, hgfy6, hgfy7, hgfy8)
+
+    h00 = (
+      hourgam0[i00] * zd[1] + hourgam1[i00] * zd[2] +
+      hourgam2[i00] * zd[3] + hourgam3[i00] * zd[4] +
+      hourgam4[i00] * zd[5] + hourgam5[i00] * zd[6] +
+      hourgam6[i00] * zd[7] + hourgam7[i00] * zd[8]
+    )
+
+    h01 = (
+      hourgam0[i01] * zd[1] + hourgam1[i01] * zd[2] +
+      hourgam2[i01] * zd[3] + hourgam3[i01] * zd[4] +
+      hourgam4[i01] * zd[5] + hourgam5[i01] * zd[6] +
+      hourgam6[i01] * zd[7] + hourgam7[i01] * zd[8]
+    )
+
+    h02 =(
+      hourgam0[i02] * zd[1] + hourgam1[i02] * zd[2]+
+      hourgam2[i02] * zd[3] + hourgam3[i02] * zd[4]+
+      hourgam4[i02] * zd[5] + hourgam5[i02] * zd[6]+
+      hourgam6[i02] * zd[7] + hourgam7[i02] * zd[8]
+    )
+
+    h03 = (
+      hourgam0[i03] * zd[1] + hourgam1[i03] * zd[2] +
+      hourgam2[i03] * zd[3] + hourgam3[i03] * zd[4] +
+      hourgam4[i03] * zd[5] + hourgam5[i03] * zd[6] +
+      hourgam6[i03] * zd[7] + hourgam7[i03] * zd[8]
+    )
+
+
+    hgfz1 = coefficient *
+     (hourgam0[i00] * h00 + hourgam0[i01] * h01 +
+      hourgam0[i02] * h02 + hourgam0[i03] * h03)
+
+    hgfz2 = coefficient *
+     (hourgam1[i00] * h00 + hourgam1[i01] * h01 +
+      hourgam1[i02] * h02 + hourgam1[i03] * h03)
+
+    hgfz3 = coefficient *
+     (hourgam2[i00] * h00 + hourgam2[i01] * h01 +
+      hourgam2[i02] * h02 + hourgam2[i03] * h03)
+
+    hgfz4 = coefficient *
+     (hourgam3[i00] * h00 + hourgam3[i01] * h01 +
+      hourgam3[i02] * h02 + hourgam3[i03] * h03)
+
+    hgfz5 = coefficient *
+     (hourgam4[i00] * h00 + hourgam4[i01] * h01 +
+      hourgam4[i02] * h02 + hourgam4[i03] * h03)
+
+    hgfz6 = coefficient *
+     (hourgam5[i00] * h00 + hourgam5[i01] * h01 +
+      hourgam5[i02] * h02 + hourgam5[i03] * h03)
+
+    hgfz7 = coefficient *
+     (hourgam6[i00] * h00 + hourgam6[i01] * h01 +
+      hourgam6[i02] * h02 + hourgam6[i03] * h03)
+
+    hgfz8 = coefficient *
+     (hourgam7[i00] * h00 + hourgam7[i01] * h01 +
+      hourgam7[i02] * h02 + hourgam7[i03] * h03)
+
+    hgfz = SVector(hgfz1, hgfz2, hgfz3, hgfz4, hgfz5, hgfz6, hgfz7, hgfz8)
+
+    end # inbounds
+
+    return hgfx, hgfy, hgfz
 end
 
 function calcFBHourglassForceForElems(domain, determ,
@@ -1442,8 +1470,6 @@ function calcFBHourglassForceForElems(domain, determ,
     # *
     # *************************************************
 
-    gamma = Matrix{Float64}(undef, 8, 4)
-
     numElem = domain.numElem
     numElem8 = numElem * 8
 
@@ -1451,56 +1477,25 @@ function calcFBHourglassForceForElems(domain, determ,
     fy_elem = Vector{Float64}(undef, numElem8)
     fz_elem = Vector{Float64}(undef, numElem8)
 
-    hgfx = Vector{Float64}(undef, 8)
-    hgfy = Vector{Float64}(undef, 8)
-    hgfz = Vector{Float64}(undef, 8)
+    hourgam0 = MVector{4, Float64}(undef)
+    hourgam1 = MVector{4, Float64}(undef)
+    hourgam2 = MVector{4, Float64}(undef)
+    hourgam3 = MVector{4, Float64}(undef)
+    hourgam4 = MVector{4, Float64}(undef)
+    hourgam5 = MVector{4, Float64}(undef)
+    hourgam6 = MVector{4, Float64}(undef)
+    hourgam7 = MVector{4, Float64}(undef)
 
-    hgfx = Vector{Float64}(undef, 8)
-    xd1 = Vector{Float64}(undef, 8)
-    yd1 = Vector{Float64}(undef, 8)
-    zd1 = Vector{Float64}(undef, 8)
-
-    hourgam0 = Vector{Float64}(undef, 4)
-    hourgam1 = Vector{Float64}(undef, 4)
-    hourgam2 = Vector{Float64}(undef, 4)
-    hourgam3 = Vector{Float64}(undef, 4)
-    hourgam4 = Vector{Float64}(undef, 4)
-    hourgam5 = Vector{Float64}(undef, 4)
-    hourgam6 = Vector{Float64}(undef, 4)
-    hourgam7 = Vector{Float64}(undef, 4)
-
-    gamma[1,1] =  1.0
-    gamma[2,1] =  1.0
-    gamma[3,1] = -1.0
-    gamma[4,1] = -1.0
-    gamma[5,1] = -1.0
-    gamma[6,1] = -1.0
-    gamma[7,1] =  1.0
-    gamma[8,1] =  1.0
-    gamma[1,2] =  1.0
-    gamma[2,2] = -1.0
-    gamma[3,2] = -1.0
-    gamma[4,2] =  1.0
-    gamma[5,2] = -1.0
-    gamma[6,2] =  1.0
-    gamma[7,2] =  1.0
-    gamma[8,2] = -1.0
-    gamma[1,3] =  1.0
-    gamma[2,3] = -1.0
-    gamma[3,3] =  1.0
-    gamma[4,3] = -1.0
-    gamma[5,3] =  1.0
-    gamma[6,3] = -1.0
-    gamma[7,3] =  1.0
-    gamma[8,3] = -1.0
-    gamma[1,4] = -1.0
-    gamma[2,4] =  1.0
-    gamma[3,4] = -1.0
-    gamma[4,4] =  1.0
-    gamma[5,4] =  1.0
-    gamma[6,4] = -1.0
-    gamma[7,4] =  1.0
-    gamma[8,4] = -1.0
+    gamma = @SMatrix [
+        1.0   1.0   1.0  -1.0
+        1.0  -1.0  -1.0   1.0
+       -1.0  -1.0   1.0  -1.0
+       -1.0   1.0  -1.0   1.0
+       -1.0  -1.0   1.0   1.0
+       -1.0   1.0  -1.0  -1.0
+        1.0   1.0   1.0   1.0
+        1.0  -1.0  -1.0  -1.0
+    ]
 
     # *************************************************
     # compute the hourglass modes
@@ -1511,7 +1506,7 @@ function calcFBHourglassForceForElems(domain, determ,
         i3=8*(i2-1)+1
         volinv= 1.0/determ[i2]
 
-        for i1 in 1:4
+        @inbounds for i1 in 1:4
 
             hourmodx =
                 x8n[i3]   * gamma[1,i1] + x8n[i3+1] * gamma[2,i1] +
@@ -1573,66 +1568,74 @@ function calcFBHourglassForceForElems(domain, determ,
         n6si2 = domain.nodelist[(i2-1)*8+7]
         n7si2 = domain.nodelist[(i2-1)*8+8]
 
-        xd1[1] = domain.xd[n0si2]
-        xd1[2] = domain.xd[n1si2]
-        xd1[3] = domain.xd[n2si2]
-        xd1[4] = domain.xd[n3si2]
-        xd1[5] = domain.xd[n4si2]
-        xd1[6] = domain.xd[n5si2]
-        xd1[7] = domain.xd[n6si2]
-        xd1[8] = domain.xd[n7si2]
+        xd1 = SVector(
+            domain.xd[n0si2],
+            domain.xd[n1si2],
+            domain.xd[n2si2],
+            domain.xd[n3si2],
+            domain.xd[n4si2],
+            domain.xd[n5si2],
+            domain.xd[n6si2],
+            domain.xd[n7si2],
+        )
 
-        yd1[1] = domain.yd[n0si2]
-        yd1[2] = domain.yd[n1si2]
-        yd1[3] = domain.yd[n2si2]
-        yd1[4] = domain.yd[n3si2]
-        yd1[5] = domain.yd[n4si2]
-        yd1[6] = domain.yd[n5si2]
-        yd1[7] = domain.yd[n6si2]
-        yd1[8] = domain.yd[n7si2]
+        yd1 = SVector(
+            domain.yd[n0si2],
+            domain.yd[n1si2],
+            domain.yd[n2si2],
+            domain.yd[n3si2],
+            domain.yd[n4si2],
+            domain.yd[n5si2],
+            domain.yd[n6si2],
+            domain.yd[n7si2],
+        )
 
-        zd1[1] = domain.zd[n0si2]
-        zd1[2] = domain.zd[n1si2]
-        zd1[3] = domain.zd[n2si2]
-        zd1[4] = domain.zd[n3si2]
-        zd1[5] = domain.zd[n4si2]
-        zd1[6] = domain.zd[n5si2]
-        zd1[7] = domain.zd[n6si2]
-        zd1[8] = domain.zd[n7si2]
+        zd1 = SVector(
+            domain.zd[n0si2],
+            domain.zd[n1si2],
+            domain.zd[n2si2],
+            domain.zd[n3si2],
+            domain.zd[n4si2],
+            domain.zd[n5si2],
+            domain.zd[n6si2],
+            domain.zd[n7si2],
+        )
 
         coefficient = - hourg * 0.01 * ss1 * mass1 / volume13
 
-        calcElemFBHourglassForce(xd1,yd1,zd1,
-                                    hourgam0,hourgam1,hourgam2,hourgam3,
-                                    hourgam4,hourgam5,hourgam6,hourgam7,
-                                    coefficient, hgfx, hgfy, hgfz)
+        hgfx, hgfy, hgfz = calcElemFBHourglassForce(xd1,yd1,zd1,
+                                 hourgam0,hourgam1,hourgam2,hourgam3,
+                                 hourgam4,hourgam5,hourgam6,hourgam7,
+                                 coefficient)
 
-        fx_elem[i3] = hgfx[1]
-        fx_elem[i3+1] = hgfx[2]
-        fx_elem[i3+2] = hgfx[3]
-        fx_elem[i3+3] = hgfx[4]
-        fx_elem[i3+4] = hgfx[5]
-        fx_elem[i3+5] = hgfx[6]
-        fx_elem[i3+6] = hgfx[7]
-        fx_elem[i3+7] = hgfx[8]
+        @inbounds begin
+            fx_elem[i3] = hgfx[1]
+            fx_elem[i3+1] = hgfx[2]
+            fx_elem[i3+2] = hgfx[3]
+            fx_elem[i3+3] = hgfx[4]
+            fx_elem[i3+4] = hgfx[5]
+            fx_elem[i3+5] = hgfx[6]
+            fx_elem[i3+6] = hgfx[7]
+            fx_elem[i3+7] = hgfx[8]
 
-        fy_elem[i3] = hgfy[1]
-        fy_elem[i3+1] = hgfy[2]
-        fy_elem[i3+2] = hgfy[3]
-        fy_elem[i3+3] = hgfy[4]
-        fy_elem[i3+4] = hgfy[5]
-        fy_elem[i3+5] = hgfy[6]
-        fy_elem[i3+6] = hgfy[7]
-        fy_elem[i3+7] = hgfy[8]
+            fy_elem[i3] = hgfy[1]
+            fy_elem[i3+1] = hgfy[2]
+            fy_elem[i3+2] = hgfy[3]
+            fy_elem[i3+3] = hgfy[4]
+            fy_elem[i3+4] = hgfy[5]
+            fy_elem[i3+5] = hgfy[6]
+            fy_elem[i3+6] = hgfy[7]
+            fy_elem[i3+7] = hgfy[8]
 
-        fz_elem[i3] = hgfz[1]
-        fz_elem[i3+1] = hgfz[2]
-        fz_elem[i3+2] = hgfz[3]
-        fz_elem[i3+3] = hgfz[4]
-        fz_elem[i3+4] = hgfz[5]
-        fz_elem[i3+5] = hgfz[6]
-        fz_elem[i3+6] = hgfz[7]
-        fz_elem[i3+7] = hgfz[8]
+            fz_elem[i3] = hgfz[1]
+            fz_elem[i3+1] = hgfz[2]
+            fz_elem[i3+2] = hgfz[3]
+            fz_elem[i3+3] = hgfz[4]
+            fz_elem[i3+4] = hgfz[5]
+            fz_elem[i3+5] = hgfz[6]
+            fz_elem[i3+6] = hgfz[7]
+            fz_elem[i3+7] = hgfz[8]
+        end
 
     # #if 0
     #     domain%m_fx(n0si2) = domain%m_fx(n0si2) + hgfx(0)
@@ -1671,48 +1674,43 @@ function calcFBHourglassForceForElems(domain, determ,
 
     numNode = domain.numNode
 
-    for gnode in 1:numNode
+    @inbounds for gnode in 1:numNode
         count = domain.nodeElemCount[gnode]
         start = domain.nodeElemStart[gnode]
         fx = 0.0
         fy = 0.0
         fz = 0.0
-        for i in 1:count
+        @simd for i in 1:count
             elem = domain.nodeElemCornerList[start+i]
-            fx = fx + fx_elem[elem]
-            fy = fy + fy_elem[elem]
-            fz = fz + fz_elem[elem]
+            fx += fx_elem[elem]
+            fy += fy_elem[elem]
+            fz += fz_elem[elem]
         end
-        domain.fx[gnode] = domain.fx[gnode] + fx
-        domain.fy[gnode] = domain.fy[gnode] + fy
-        domain.fz[gnode] = domain.fz[gnode] + fz
+        domain.fx[gnode] += fx
+        domain.fy[gnode] += fy
+        domain.fz[gnode] += fz
     end
 end
 
 function calcHourglassControlForElems(domain::Domain, determ, hgcoef)
-  numElem = domain.numElem
-  numElem8 = numElem * 8
-  x1 = Vector{Float64}(undef, 8)
-  y1 = Vector{Float64}(undef, 8)
-  z1 = Vector{Float64}(undef, 8)
-  pfx = Vector{Float64}(undef, 8)
-  pfy = Vector{Float64}(undef, 8)
-  pfz = Vector{Float64}(undef, 8)
-  dvdx = Vector{Float64}(undef, numElem8)
-  dvdy = Vector{Float64}(0:numElem8)
-  dvdz = Vector{Float64}(0:numElem8)
-  x8n = Vector{Float64}(0:numElem8)
-  y8n = Vector{Float64}(0:numElem8)
-  z8n = Vector{Float64}(0:numElem8)
+    numElem = domain.numElem
+    numElem8 = numElem * 8
+    dvdx = Vector{Float64}(undef, numElem8)
+    dvdy = Vector{Float64}(undef, numElem8)
+    dvdz = Vector{Float64}(undef, numElem8)
+    x8n = Vector{Float64}(undef, numElem8)
+    y8n = Vector{Float64}(undef, numElem8)
+    z8n = Vector{Float64}(undef, numElem8)
 
-  #start loop over elements
-  for i in 1:numElem
-    collectDomainNodesToElemNodes(domain, x1, y1, z1, (i-1)*8+1)
-    calcElemVolumeDerivative(pfx, pfy, pfz, x1, y1, z1)
+    #start loop over elements
+    for i in 1:numElem
+        x1, y1, z1    = collectDomainNodesToElemNodes(domain, (i-1)*8+1)
+        pfx, pfy, pfz = calcElemVolumeDerivative(x1, y1, z1)
 
-    #   load into temporary storage for FB Hour Glass control
-    for ii in 1:8
-        jj = 8*(i-1) + ii
+        #   load into temporary storage for FB Hour Glass control
+        for ii in 1:8
+            jj = 8*(i-1) + ii
+
             dvdx[jj] = pfx[ii]
             dvdy[jj] = pfy[ii]
             dvdz[jj] = pfz[ii]
@@ -1730,10 +1728,10 @@ function calcHourglassControlForElems(domain::Domain, determ, hgcoef)
     end
 
     if hgcoef > 0.0
-        calcFBHourglassForceForElems(domain, determ,x8n,y8n,z8n,dvdx,dvdy,dvdz,hgcoef)
+        calcFBHourglassForceForElems(domain,determ,x8n,y8n,z8n,dvdx,dvdy,dvdz,hgcoef)
     end
-  return nothing
 
+    return nothing
 end
 
 function calcVolumeForceForElems(domain::Domain)
@@ -1887,7 +1885,7 @@ function lagrangeNodal(domain::Domain)
     return nothing
 end
 
-function areaFace( x0, x1, x2, x3,
+@inline function areaFace( x0, x1, x2, x3,
                    y0, y1, y2, y3,
                    z0, z1, z2, z3  )
 
@@ -1906,7 +1904,7 @@ function areaFace( x0, x1, x2, x3,
   return area
 end
 
-function calcElemCharacteristicLength( x, y, z, volume)
+@inline function calcElemCharacteristicLength( x, y, z, volume)
 
     charLength = 0.0
 
@@ -1945,9 +1943,8 @@ function calcElemCharacteristicLength( x, y, z, volume)
     return charLength
 end
 
-function calcElemShapeFunctionDerivatives( x, y, z,
-                                             b,
-                                             el_volume   )
+@inline function calcElemShapeFunctionDerivatives(x, y, z)
+    @inbounds begin
     x0 = x[1]
     x1 = x[2]
     x2 = x[3]
@@ -2003,6 +2000,7 @@ function calcElemShapeFunctionDerivatives( x, y, z,
     # calculate partials :
     #     this need only be done for l = 0,1,2,3   since , by symmetry ,
     #     (6,7,4,5) = - (0,1,2,3) .
+    b = MMatrix{8, 3, Float64}(undef) # shape function derivatives
     b[1,1] =   -  cjxxi  -  cjxet  -  cjxze
     b[2,1] =      cjxxi  -  cjxet  -  cjxze
     b[3,1] =      cjxxi  +  cjxet  -  cjxze
@@ -2029,31 +2027,31 @@ function calcElemShapeFunctionDerivatives( x, y, z,
     b[6,3] = -b[4,3]
     b[7,3] = -b[1,3]
     b[8,3] = -b[2,3]
+    end #inbounds
 
     # calculate jacobian determinant (volume)
     el_volume = 8.0 * ( fjxet * cjxet + fjyet * cjyet + fjzet * cjzet)
-    return nothing
+    return SMatrix(b), el_volume
 end
 
-function calcElemVelocityGradient( xvel, yvel, zvel,
-                                      b, detJ, d )
-
+@inline function calcElemVelocityGradient( xvel, yvel, zvel, b, detJ)
+    @inbounds begin
     inv_detJ = 1.0 / detJ
     pfx = b[:,1]
     pfy = b[:,2]
     pfz = b[:,3]
 
-    d[1] = inv_detJ * (   pfx[1] * (xvel[1]-xvel[7])
+    d1 = inv_detJ * (   pfx[1] * (xvel[1]-xvel[7])
                         + pfx[2] * (xvel[2]-xvel[8])
                         + pfx[3] * (xvel[3]-xvel[5])
                         + pfx[4] * (xvel[4]-xvel[6]) )
 
-    d[2] = inv_detJ * (   pfy[1] * (yvel[1]-yvel[7])
+    d2 = inv_detJ * (   pfy[1] * (yvel[1]-yvel[7])
                         + pfy[2] * (yvel[2]-yvel[8])
                         + pfy[3] * (yvel[3]-yvel[5])
                         + pfy[4] * (yvel[4]-yvel[6]) )
 
-    d[3] = inv_detJ * (   pfz[1] * (zvel[1]-zvel[7])
+    d3 = inv_detJ * (   pfz[1] * (zvel[1]-zvel[7])
                         + pfz[2] * (zvel[2]-zvel[8])
                         + pfz[3] * (zvel[3]-zvel[5])
                         + pfz[4] * (zvel[4]-zvel[6]) )
@@ -2087,44 +2085,44 @@ function calcElemVelocityGradient( xvel, yvel, zvel,
                         + pfz[2] * (yvel[2]-yvel[8])
                         + pfz[3] * (yvel[3]-yvel[5])
                         + pfz[4] * (yvel[4]-yvel[6]) )
+    end #inbounds
 
-    d[6] = 0.5 * ( dxddy + dyddx )
-    d[5] = 0.5 * ( dxddz + dzddx )
-    d[4] = 0.5 * ( dzddy + dyddz )
+    d6 = 0.5 * ( dxddy + dyddx )
+    d5 = 0.5 * ( dxddz + dzddx )
+    d4 = 0.5 * ( dzddy + dyddz )
+
+    return SVector(d1, d2, d3, d4, d5, d6)
+end
+
+@inline function collectNodal(nodelist, src, i)
+    @inbounds begin
+        s1 = src[nodelist[i+1]]
+        s2 = src[nodelist[i+2]]
+        s3 = src[nodelist[i+3]]
+        s4 = src[nodelist[i+4]]
+        s5 = src[nodelist[i+5]]
+        s6 = src[nodelist[i+6]]
+        s7 = src[nodelist[i+7]]
+        s8 = src[nodelist[i+8]]
+    end
+
+    return SVector(s1, s2, s3, s4, s5, s6, s7, s8)
 end
 
 
-
 function calcKinematicsForElems(domain::Domain, numElem, dt)
-
-    detJ = 0.0
-
-    B = Matrix{Float64}(undef, 8, 3) # shape function derivatives
-    D = Vector{Float64}(undef, 6)
-    x_local = Vector{Float64}(undef, 8)
-    y_local = Vector{Float64}(undef, 8)
-    z_local = Vector{Float64}(undef, 8)
-    xd_local = Vector{Float64}(undef, 8)
-    yd_local = Vector{Float64}(undef, 8)
-    zd_local = Vector{Float64}(undef, 8)
-
-
-        nodelist = domain.nodelist
+    nodelist = domain.nodelist
     # loop over all elements
     for k in 1:numElem
-        # elemToNode => domain%m_nodelist(k*8:)
-
         # get nodal coordinates from global arrays and copy into local arrays
-        for lnode in 1:8
-            # INDEXING
-            gnode = nodelist[(k-1)*8 + lnode]
-            x_local[lnode] = domain.x[gnode]
-            y_local[lnode] = domain.y[gnode]
-            z_local[lnode] = domain.z[gnode]
+        @inbounds begin
+            x_local = collectNodal(nodelist, domain.x, (k-1)*8)
+            y_local = collectNodal(nodelist, domain.y, (k-1)*8)
+            z_local = collectNodal(nodelist, domain.z, (k-1)*8)
         end
 
         # volume calculations
-        volume = calcElemVolume(x_local, y_local, z_local )
+        volume = calcElemVolume(x_local, y_local, z_local)
         relativeVolume = volume / domain.volo[k]
         domain.vnew[k] = relativeVolume
         domain.delv[k] = relativeVolume - domain.v[k]
@@ -2134,25 +2132,20 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
                                                         z_local, volume)
 
         #  get nodal velocities from global array and copy into local arrays.
-        for lnode in 1:8
-        # INDEXING
-        gnode = nodelist[(k-1)*8+lnode]
-        xd_local[lnode] = domain.xd[gnode]
-        yd_local[lnode] = domain.yd[gnode]
-        zd_local[lnode] = domain.zd[gnode]
+        @inbounds begin
+            xd_local = collectNodal(nodelist, domain.xd, (k-1)*8)
+            yd_local = collectNodal(nodelist, domain.yd, (k-1)*8)
+            zd_local = collectNodal(nodelist, domain.zd, (k-1)*8)
         end
 
-
         dt2 = 0.5 * dt
-        x_local .= x_local .- dt2 .* xd_local
-        y_local .= y_local .- dt2 .* yd_local
-        z_local .= z_local .- dt2 .* zd_local
+        x_local = x_local .- dt2 .* xd_local
+        y_local = y_local .- dt2 .* yd_local
+        z_local = z_local .- dt2 .* zd_local
 
-        calcElemShapeFunctionDerivatives( x_local, y_local, z_local,
-                                            B, detJ )
+        B, detJ = calcElemShapeFunctionDerivatives(x_local, y_local, z_local)
 
-        calcElemVelocityGradient( xd_local, yd_local, zd_local,
-                                        B, detJ, D )
+        D = calcElemVelocityGradient(xd_local, yd_local, zd_local, B, detJ)
 
         # put velocity gradient quantities into their global arrays.
         domain.dxx[k] = D[1]

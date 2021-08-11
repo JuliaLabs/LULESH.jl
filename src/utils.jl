@@ -30,11 +30,11 @@ end
 # PAD_DIV(nbytes, align) = nbytes + div(align - 1, align)
 # PAD(nbytes, align) = PAD_DIV(nbytes,align) * align
 
-function calcElemVolume(
+@inline function calcElemVolume(
     x0, x1,x2, x3, x4, x5, x6, x7, y0, y1, y2, y3, y4, y5, y6, y7,
     z0, z1, z2, z3, z4, z5, z6, z7
 )
-    function triple_product(x1, y1, z1, x2, y2, z2, x3, y3, z3)
+    @inline function triple_product(x1, y1, z1, x2, y2, z2, x3, y3, z3)
         return (((x1)*((y2)*(z3) - (z2)*(y3)) + (x2)*((z1)*(y3)
                   - (y1)*(z3)) + (x3)*((y1)*(z2) - (z1)*(y2))))
     end
@@ -112,7 +112,7 @@ function calcElemVolume(
     return volume
 end
 
-calcElemVolume(x, y, z) = calcElemVolume(
+@inline calcElemVolume(x, y, z) = calcElemVolume(
     x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8],
     y[1], y[2], y[3], y[4], y[5], y[6], y[7], y[8],
     z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8]
