@@ -48,17 +48,17 @@ function allocateNodalPersistent!(domain, domNodes)
     resize!(domain.fy, domNodes)
     resize!(domain.fz, domNodes)
 
-     resize!(domain.dfx, domNodes)  # AD derivative of the forces
-     resize!(domain.dfy, domNodes)
-     resize!(domain.dfz, domNodes)
+    resize!(domain.dfx, domNodes)  # AD derivative of the forces
+    resize!(domain.dfy, domNodes)
+    resize!(domain.dfz, domNodes)
 
     resize!(domain.nodalMass, domNodes)  # mass
     return nothing
 end
 
 function allocateElemPersistent!(domain, domElems)
-    resize!(domain.matElemlist, domElems) ;  # material indexset
-    resize!(domain.nodelist, 8*domElems) ;   # elemToNode connectivity
+    resize!(domain.matElemlist, domElems)  # material indexset
+    resize!(domain.nodelist, 8*domElems)   # elemToNode connectivity
 
     resize!(domain.lxim, domElems)  # elem connectivity through face g
     resize!(domain.lxip, domElems)
@@ -113,12 +113,12 @@ function initializeFields!(domain)
     fill!(domain.nodalMass,0.0)
 end
 
-function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y_h, z_h, nodelist_h)
-    meshEdgeElems = domain.m_tp*nx ;
+function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x, y, z, nodelist)
+    meshEdgeElems = domain.m_tp*nx
 
-    resize!(x_h, domNodes)
-    resize!(y_h, domNodes)
-    resize!(z_h, domNodes)
+    resize!(x, domNodes)
+    resize!(y, domNodes)
+    resize!(z, domNodes)
     # initialize nodal coordinates
     # INDEXING
     nidx::IndexT = 1
@@ -128,9 +128,9 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y
         for row in 1:edgeNodes
         tx = 1.125*(domain.m_colLoc*nx)/meshEdgeElems
             for col in 1:edgeNodes
-                x_h[nidx] = tx
-                y_h[nidx] = ty
-                z_h[nidx] = tz
+                x[nidx] = tx
+                y[nidx] = ty
+                z[nidx] = tz
                 nidx+=1
                 # tx += ds ; // may accumulate roundoff...
                 tx = 1.125*(domain.m_colLoc*nx+col+1)/meshEdgeElems
@@ -142,10 +142,10 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y
         tz = 1.125*(domain.m_planeLoc*nx+plane+1)/meshEdgeElems
     end
 
-    copyto!(domain.x, x_h)
-    copyto!(domain.y, y_h)
-    copyto!(domain.z, z_h)
-    resize!(nodelist_h, domElems*8);
+    copyto!(domain.x, x)
+    copyto!(domain.y, y)
+    copyto!(domain.z, z)
+    resize!(nodelist, domElems*8);
 
     # embed hexehedral elements in nodal point lattice
     # INDEXING
@@ -154,14 +154,14 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y
     for plane in 1:edgeElems
         for row in 1:edgeElems
             for col in 1:edgeElems
-                nodelist_h[8*zidx+1] = nidx
-                nodelist_h[8*zidx+2] = nidx                                   + 1
-                nodelist_h[8*zidx+3] = nidx                       + edgeNodes + 1
-                nodelist_h[8*zidx+4] = nidx                       + edgeNodes
-                nodelist_h[8*zidx+5] = nidx + edgeNodes*edgeNodes
-                nodelist_h[8*zidx+6] = nidx + edgeNodes*edgeNodes             + 1
-                nodelist_h[8*zidx+7] = nidx + edgeNodes*edgeNodes + edgeNodes + 1
-                nodelist_h[8*zidx+8] = nidx + edgeNodes*edgeNodes + edgeNodes
+                nodelist[8*zidx+1] = nidx
+                nodelist[8*zidx+2] = nidx                                   + 1
+                nodelist[8*zidx+3] = nidx                       + edgeNodes + 1
+                nodelist[8*zidx+4] = nidx                       + edgeNodes
+                nodelist[8*zidx+5] = nidx + edgeNodes*edgeNodes
+                nodelist[8*zidx+6] = nidx + edgeNodes*edgeNodes             + 1
+                nodelist[8*zidx+7] = nidx + edgeNodes*edgeNodes + edgeNodes + 1
+                nodelist[8*zidx+8] = nidx + edgeNodes*edgeNodes + edgeNodes
                 zidx+=1
                 nidx+=1
             end
@@ -169,54 +169,54 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y
         end
     nidx+=edgeNodes
     end
-    copyto!(domain.nodelist, nodelist_h)
+    copyto!(domain.nodelist, nodelist)
 end
 
 function setupConnectivityBC!(domain::Domain, edgeElems)
     domElems = domain.numElem;
 
-    lxim_h = Vector{IndexT}(undef, domElems)
-    lxip_h = Vector{IndexT}(undef, domElems)
-    letam_h = Vector{IndexT}(undef, domElems)
-    letap_h = Vector{IndexT}(undef, domElems)
-    lzetam_h = Vector{IndexT}(undef, domElems)
-    lzetap_h = Vector{IndexT}(undef, domElems)
+    lxim = Vector{IndexT}(undef, domElems)
+    lxip = Vector{IndexT}(undef, domElems)
+    letam = Vector{IndexT}(undef, domElems)
+    letap = Vector{IndexT}(undef, domElems)
+    lzetam = Vector{IndexT}(undef, domElems)
+    lzetap = Vector{IndexT}(undef, domElems)
 
     # set up elemement connectivity information
-    lxim_h[1] = 0 ;
+    lxim[1] = 0 ;
     for i in 2:domElems
-       lxim_h[i]   = i-1
-       lxip_h[i-1] = i
+       lxim[i]   = i-1
+       lxip[i-1] = i
     end
     # MAYBE
-    lxip_h[domElems] = domElems-1
+    lxip[domElems] = domElems-1
 
     # INDEXING
     for i in 1:edgeElems
-       letam_h[i] = i
-       letap_h[domElems-edgeElems+i] = domElems-edgeElems+i
+       letam[i] = i
+       letap[domElems-edgeElems+i] = domElems-edgeElems+i
     end
 
     for i in edgeElems:domElems
-       letam_h[i] = i-edgeElems
-       letap_h[i-edgeElems+1] = i
+       letam[i] = i-edgeElems
+       letap[i-edgeElems+1] = i
     end
 
     for i in 1:edgeElems*edgeElems
-       lzetam_h[i] = i
-       lzetap_h[domElems-edgeElems*edgeElems+i] = domElems-edgeElems*edgeElems+i
+       lzetam[i] = i
+       lzetap[domElems-edgeElems*edgeElems+i] = domElems-edgeElems*edgeElems+i
     end
 
     for i in edgeElems*edgeElems:domElems
-       lzetam_h[i] = i - edgeElems*edgeElems
-       lzetap_h[i-edgeElems*edgeElems+1] = i
+       lzetam[i] = i - edgeElems*edgeElems
+       lzetap[i-edgeElems*edgeElems+1] = i
     end
 
 
     # set up boundary condition information
-    elemBC_h = Vector{IndexT}(undef, domElems)
+    elemBC = Vector{IndexT}(undef, domElems)
     for i in 1:domElems
-        elemBC_h[i] = 0   # clear BCs by default
+        elemBC[i] = 0   # clear BCs by default
     end
 
     ghostIdx = [typemin(IndexT) for i in 1:6]::Vector{IndexT} # offsets to ghost locations
@@ -257,68 +257,68 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
         rowInc   = (i-1)*edgeElems
         for j in 1:edgeElems
             if domain.m_planeLoc == 0
-                elemBC_h[rowInc+(j-1)+1] |= ZETA_M_SYMM
+                elemBC[rowInc+(j-1)+1] |= ZETA_M_SYMM
             else
-                elemBC_h[rowInc+(j-1)+1] |= ZETA_M_COMM
-                lzetam_h[rowInc+(j-1)+1] = ghostIdx[1] + rowInc + (j-1)
+                elemBC[rowInc+(j-1)+1] |= ZETA_M_COMM
+                lzetam[rowInc+(j-1)+1] = ghostIdx[1] + rowInc + (j-1)
             end
 
             if domain.m_planeLoc == domain.m_tp-1
-                elemBC_h[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
+                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
             else
-                elemBC_h[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
-                lzetap_h[rowInc+(j-1)+domElems-edgeElems*edgeElems] = ghostIdx[2] + rowInc + (j-1)
+                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
+                lzetap[rowInc+(j-1)+domElems-edgeElems*edgeElems] = ghostIdx[2] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == 0
-                elemBC_h[planeInc+(j-1)+1] |= ETA_M_SYMM
+                elemBC[planeInc+(j-1)+1] |= ETA_M_SYMM
             else
-                elemBC_h[planeInc+(j-1)+1] |= ETA_M_COMM
-                letam_h[planeInc+(j-1)+1] = ghostIdx[3] + rowInc + (j-1)
+                elemBC[planeInc+(j-1)+1] |= ETA_M_COMM
+                letam[planeInc+(j-1)+1] = ghostIdx[3] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == domain.m_tp-1
-                elemBC_h[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
+                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
             else
-                elemBC_h[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
-                letap_h[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] = ghostIdx[4] +  rowInc + (j-1)
+                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
+                letap[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] = ghostIdx[4] +  rowInc + (j-1)
             end
 
             if domain.m_colLoc == 0
-                elemBC_h[planeInc+(j-1)*edgeElems+1] |= XI_M_SYMM
+                elemBC[planeInc+(j-1)*edgeElems+1] |= XI_M_SYMM
             else
-                elemBC_h[planeInc+(j-1)*edgeElems+1] |= XI_M_COMM
-                lxim_h[planeInc+(j-1)*edgeElems+1] = ghostIdx[5] + rowInc + (j-1)
+                elemBC[planeInc+(j-1)*edgeElems+1] |= XI_M_COMM
+                lxim[planeInc+(j-1)*edgeElems+1] = ghostIdx[5] + rowInc + (j-1)
             end
 
             if domain.m_colLoc == domain.m_tp-1
                 # FIXIT this goes out of bounds due to INDEXING
-                # elemBC_h[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_FREE
+                # elemBC[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_FREE
             else
-                elemBC_h[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_COMM
-                lxip_h[planeInc+(j-1)*edgeElems+edgeElems-1] = ghostIdx[6] + rowInc + (j-1)
+                elemBC[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_COMM
+                lxip[planeInc+(j-1)*edgeElems+edgeElems-1] = ghostIdx[6] + rowInc + (j-1)
             end
         end
     end
 
-    copyto!(domain.elemBC, elemBC_h)
-    copyto!(domain.lxim, lxim_h)
-    copyto!(domain.lxip, lxip_h)
-    copyto!(domain.letam, letam_h)
-    copyto!(domain.letap, letap_h)
-    copyto!(domain.lzetam, lzetam_h)
-    copyto!(domain.lzetap, lzetap_h)
+    copyto!(domain.elemBC, elemBC)
+    copyto!(domain.lxim, lxim)
+    copyto!(domain.lxip, lxip)
+    copyto!(domain.letam, letam)
+    copyto!(domain.letap, letap)
+    copyto!(domain.lzetam, lzetam)
+    copyto!(domain.lzetap, lzetap)
 end
 
-function sortRegions(regReps_h::Vector{IndexT}, regSorted_h::Vector{IndexT}, regElemSize, numReg)
+function sortRegions(regReps::Vector{IndexT}, regSorted::Vector{IndexT}, regElemSize, numReg)
     regIndex = [v for v in 1:numReg]::Vector{IndexT}
 
     for i in 1:numReg-1
         for j in 1:numReg-i-1
-            if regReps_h[j] < regReps_h[j+1]
-                temp = regReps_h[j]
-                regReps_h[j] = regReps_h[j+1]
-                regReps_h[j+1] = temp
+            if regReps[j] < regReps[j+1]
+                temp = regReps[j]
+                regReps[j] = regReps[j+1]
+                regReps[j+1] = temp
 
                 temp = regElemSize[j]
                 regElemSize[j] = regElemSize[j+1]
@@ -331,7 +331,7 @@ function sortRegions(regReps_h::Vector{IndexT}, regSorted_h::Vector{IndexT}, reg
         end
     end
     for i in 1:numReg
-        regSorted_h[regIndex[i]] = i
+        regSorted[regIndex[i]] = i
     end
 end
 
@@ -345,18 +345,18 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::Union{MPI
     regElemSize = Vector{Int}(undef, numReg)
     nextIndex::IndexT = 0
 
-    regCSR_h = convert(Vector{Int}, regCSR) # records the begining and end of each region
-    regReps_h = convert(Vector{Int}, regReps) # records the rep number per region
-    regNumList_h = convert(Vector{IndexT}, regNumList) # Region number per domain element
-    regElemlist_h = convert(Vector{IndexT}, regElemlist) # region indexset
-    regSorted_h = convert(Vector{IndexT}, regSorted) # keeps index of sorted regions
+    regCSR = convert(Vector{Int}, regCSR) # records the begining and end of each region
+    regReps = convert(Vector{Int}, regReps) # records the rep number per region
+    regNumList = convert(Vector{IndexT}, regNumList) # Region number per domain element
+    regElemlist = convert(Vector{IndexT}, regElemlist) # region indexset
+    regSorted = convert(Vector{IndexT}, regSorted) # keeps index of sorted regions
 
     # if we only have one region just fill it
     # Fill out the regNumList with material numbers, which are always
     # the region index plus one
     if numReg == 1
         while nextIndex < numElem
-            regNumList_h[nextIndex+1] = 1
+            regNumList[nextIndex+1] = 1
             nextIndex+=1
         end
         regElemSize[1] = 0
@@ -414,7 +414,7 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::Union{MPI
             # Store the elements.  If we hit the end before we run out of elements then just stop.
             while nextIndex < runto && nextIndex < numElem
                 # INDEXING
-                regNumList_h[nextIndex+1] = regionNum
+                regNumList[nextIndex+1] = regionNum
                 nextIndex += 1
             end
             lastReg = regionNum
@@ -424,7 +424,7 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::Union{MPI
     # First, count size of each region
     for i in 1:numElem
         # INDEXING
-        r = regNumList_h[i] # region index == regnum-1
+        r = regNumList[i] # region index == regnum-1
         regElemSize[r]+=1
     end
 
@@ -437,30 +437,30 @@ function createRegionIndexSets!(domain::Domain, nr::Int, b::Int, comm::Union{MPI
         else
             rep = 10 * (1 + cost)
         end
-        regReps_h[r] = rep
+        regReps[r] = rep
     end
-    sortRegions(regReps_h, regSorted_h, regElemSize, numReg);
+    sortRegions(regReps, regSorted, regElemSize, numReg);
 
-    regCSR_h[1] = 0;
+    regCSR[1] = 0;
     # Second, allocate each region index set
     for i in 2:numReg
-        regCSR_h[i] = regCSR_h[i-1] + regElemSize[i-1];
+        regCSR[i] = regCSR[i-1] + regElemSize[i-1];
     end
 
     # Third, fill index sets
     for i in 1:numElem
         # INDEXING
-        r = regSorted_h[regNumList_h[i]] # region index == regnum-1
-        regElemlist_h[regCSR_h[r]+1] = i
-        regCSR_h[r] += 1
+        r = regSorted[regNumList[i]] # region index == regnum-1
+        regElemlist[regCSR[r]+1] = i
+        regCSR[r] += 1
     end
 
     # Copy to device
-    copyto!(regCSR, regCSR_h) # records the begining and end of each region
-    copyto!(regReps, regReps_h) # records the rep number per region
-    copyto!(regNumList, regNumList_h) # Region number per domain element
-    copyto!(regElemlist, regElemlist_h) # region indexset
-    copyto!(regSorted, regSorted_h) # keeps index of sorted regions
+    copyto!(regCSR, regCSR) # records the begining and end of each region
+    copyto!(regReps, regReps) # records the rep number per region
+    copyto!(regNumList, regNumList) # Region number per domain element
+    copyto!(regElemlist, regElemlist) # region indexset
+    copyto!(regSorted, regSorted) # keeps index of sorted regions
     @pack_Domain! domain
 end
 
@@ -533,10 +533,10 @@ function Domain(prob::LuleshProblem)
 #   Index_t domNodes;
 #   Index_t padded_domElems;
 
-    nodelist_h = Vector{IndexT}()
-    x_h = Vector{prob.floattype}()
-    y_h = Vector{prob.floattype}()
-    z_h = Vector{prob.floattype}()
+    nodelist = Vector{IndexT}()
+    x = Vector{prob.floattype}()
+    y = Vector{prob.floattype}()
+    z = Vector{prob.floattype}()
 
     if structured
 
@@ -574,7 +574,7 @@ function Domain(prob::LuleshProblem)
 
         initializeFields!(domain)
 
-        buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x_h, y_h, z_h, nodelist_h)
+        buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x, y, z, nodelist)
 
         domain.numSymmX = domain.numSymmY = domain.numSymmZ = 0
 
@@ -593,9 +593,9 @@ function Domain(prob::LuleshProblem)
 
         # Set up symmetry nodesets
 
-        symmX_h = convert(Vector, domain.symmX)
-        symmY_h = convert(Vector, domain.symmY)
-        symmZ_h = convert(Vector, domain.symmZ)
+        symmX = convert(Vector, domain.symmX)
+        symmY = convert(Vector, domain.symmY)
+        symmZ = convert(Vector, domain.symmZ)
 
         nidx = 1
         # INDEXING
@@ -604,25 +604,25 @@ function Domain(prob::LuleshProblem)
             rowInc   = (i-1)*edgeNodes
             for j in 1:edgeNodes
                 if domain.m_planeLoc == 0
-                    symmZ_h[nidx] = rowInc   + j
+                    symmZ[nidx] = rowInc   + j
                 end
                 if domain.m_rowLoc == 0
-                    symmY_h[nidx] = planeInc + j
+                    symmY[nidx] = planeInc + j
                 end
                 if domain.m_colLoc == 0
-                    symmX_h[nidx] = planeInc + j*edgeNodes
+                    symmX[nidx] = planeInc + j*edgeNodes
                 end
                 nidx+=1
             end
         end
         if domain.m_planeLoc == 0
-            domain.symmZ = symmZ_h
+            domain.symmZ = symmZ
         end
         if domain.m_rowLoc == 0
-            domain.symmY = symmY_h
+            domain.symmY = symmY
         end
         if domain.m_colLoc == 0
-            domain.symmX = symmX_h
+            domain.symmX = symmX
         end
 
         setupConnectivityBC!(domain, edgeElems)
@@ -630,67 +630,60 @@ function Domain(prob::LuleshProblem)
         error("Reading unstructured mesh is currently missing in the Julia version of LULESH.")
     end
     # set up node-centered indexing of elements */
-    nodeElemCount_h = zeros(IndexT, domNodes)
+    nodeElemCount = zeros(IndexT, domNodes)
     # INDEXING
     for i in 1:domElems
         for j in 0:7
-            nodeElemCount_h[nodelist_h[j*domElems+i]]+=1
+            nodeElemCount[nodelist[j*domElems+i]]+=1
         end
     end
 
-    nodeElemStart_h = zeros(IndexT, domNodes)
-    nodeElemStart_h[1] = 0
+    nodeElemStart = zeros(IndexT, domNodes)
+    nodeElemStart[1] = 0
     for i in 2:domNodes
-        nodeElemStart_h[i] = nodeElemStart_h[i-1] + nodeElemCount_h[i-1]
+        nodeElemStart[i] = nodeElemStart[i-1] + nodeElemCount[i-1]
     end
-    nodeElemCornerList_h = Vector{IndexT}(undef, nodeElemStart_h[domNodes] + nodeElemCount_h[domNodes] )
+    nodeElemCornerList = Vector{IndexT}(undef, nodeElemStart[domNodes] + nodeElemCount[domNodes] )
 
-    nodeElemCount_h .= 0
+    nodeElemCount .= 0
 
     for j in 0:7
         for i in 1:domElems
-            m = nodelist_h[domElems*j+i]
+            m = nodelist[domElems*j+i]
             k = domElems*j + i
             # INDEXING
-            offset = nodeElemStart_h[m] + nodeElemCount_h[m]
-            nodeElemCornerList_h[offset+1] = k
-            nodeElemCount_h[m] += 1
+            offset = nodeElemStart[m] + nodeElemCount[m]
+            nodeElemCornerList[offset+1] = k
+            nodeElemCount[m] += 1
         end
     end
 
-    clSize = nodeElemStart_h[domNodes] + nodeElemCount_h[domNodes]
+    clSize = nodeElemStart[domNodes] + nodeElemCount[domNodes]
     for i in 1:clSize
-        clv = nodeElemCornerList_h[i] ;
+        clv = nodeElemCornerList[i] ;
         if (clv < 0) || (clv > domElems*8)
             error("AllocateNodeElemIndexes(): nodeElemCornerList entry out of range!")
         end
     end
 
-    domain.nodeElemStart = convert(VDI, nodeElemStart_h)
-    domain.nodeElemCount = convert(VDI, nodeElemCount_h)
-    domain.nodeElemCornerList = convert(VDI, nodeElemCornerList_h)
+    domain.nodeElemStart = convert(VDI, nodeElemStart)
+    domain.nodeElemCount = convert(VDI, nodeElemCount)
+    domain.nodeElemCornerList = convert(VDI, nodeElemCornerList)
 
     # Create a material IndexSet (entire domain same material for now)
-    matElemlist_h = Vector{IndexT}(undef, domElems)
+    matElemlist = Vector{IndexT}(undef, domElems)
     for i in 1:domElems
-        matElemlist_h[i] = i
+        matElemlist[i] = i
     end
-    copyto!(domain.matElemlist, matElemlist_h)
+    copyto!(domain.matElemlist, matElemlist)
 
-    # TODO Not sure what to do here
-    #   cudaMallocHost(&domain->dtcourant_h,sizeof(Real_t),0);
-    #   cudaMallocHost(&domain->dthydro_h,sizeof(Real_t),0);
-    #   cudaMallocHost(&domain->bad_vol_h,sizeof(Index_t),0);
-    #   cudaMallocHost(&domain->bad_q_h,sizeof(Index_t),0);
-
-
-    domain.bad_vol_h = -1
-    domain.bad_q_h = -1
-    domain.dthydro_h = 1e20
-    domain.dtcourant_h = 1e20
+    domain.bad_vol = -1
+    domain.bad_q = -1
+    domain.dthydro = 1e20
+    domain.dtcourant = 1e20
 
     # initialize material parameters
-    domain.time_h      = 0.
+    domain.time      = 0.
     domain.dtfixed = -1.0e-6
     domain.deltatimemultlb = 1.1
     domain.deltatimemultub = 1.2
@@ -725,33 +718,33 @@ function Domain(prob::LuleshProblem)
     domain.refdens =  1.0
 
     # initialize field data
-    nodalMass_h = Vector{prob.floattype}(undef, domNodes)
-    volo_h = Vector{prob.floattype}(undef, domElems)
-    elemMass_h = Vector{prob.floattype}(undef, domElems)
+    nodalMass = Vector{prob.floattype}(undef, domNodes)
+    volo = Vector{prob.floattype}(undef, domElems)
+    elemMass = Vector{prob.floattype}(undef, domElems)
 
     for i in 1:domElems
         x_local = Vector{prob.floattype}(undef, 8)
         y_local = Vector{prob.floattype}(undef, 8)
         z_local = Vector{prob.floattype}(undef, 8)
         for lnode in 0:7
-            gnode = nodelist_h[(i-1)*8+lnode+1]
-            x_local[lnode+1] = x_h[gnode]
-            y_local[lnode+1] = y_h[gnode]
-            z_local[lnode+1] = z_h[gnode]
+            gnode = nodelist[(i-1)*8+lnode+1]
+            x_local[lnode+1] = x[gnode]
+            y_local[lnode+1] = y[gnode]
+            z_local[lnode+1] = z[gnode]
         end
         # volume calculations
         volume = calcElemVolume(x_local, y_local, z_local )
-        volo_h[i] = volume
-        elemMass_h[i] = volume
+        volo[i] = volume
+        elemMass[i] = volume
         for j in 0:7
-            gnode = nodelist_h[j*domElems+i]
-            nodalMass_h[gnode] += volume / 8.0
+            gnode = nodelist[j*domElems+i]
+            nodalMass[gnode] += volume / 8.0
         end
     end
 
-    copyto!(domain.nodalMass, nodalMass_h)
-    copyto!(domain.volo, volo_h)
-    copyto!(domain.elemMass, elemMass_h)
+    copyto!(domain.nodalMass, nodalMass)
+    copyto!(domain.volo, volo)
+    copyto!(domain.elemMass, elemMass)
 
     # deposit energy
     domain.octantCorner = 0;
@@ -769,7 +762,7 @@ function Domain(prob::LuleshProblem)
     end
 
     # set initial deltatime base on analytic CFL calculation
-    domain.deltatime_h = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
+    domain.deltatime = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
 
     domain.cost = cost
     resize!(domain.regNumList, domain.numElem)  # material indexset
@@ -787,19 +780,19 @@ function Domain(prob::LuleshProblem)
 end
 
 function timeIncrement!(domain::Domain)
-    targetdt = domain.stoptime - domain.time_h
+    targetdt = domain.stoptime - domain.time
     if domain.dtfixed <= 0.0 && domain.cycle != 0
-        olddt = domain.deltatime_h
+        olddt = domain.deltatime
 
         # This will require a reduction in parallel
         newdt = 1.0e+20
 
-        if domain.dtcourant_h < newdt
-            newdt = domain.dtcourant_h / 2.0
+        if domain.dtcourant < newdt
+            newdt = domain.dtcourant / 2.0
         end
 
-        if domain.dthydro_h < newdt
-            newdt = domain.dthydro_h * 2.0 / 3.0
+        if domain.dthydro < newdt
+            newdt = domain.dthydro * 2.0 / 3.0
         end
 
         ratio = newdt / olddt
@@ -813,18 +806,18 @@ function timeIncrement!(domain::Domain)
 
         newdt = min(newdt, domain.dtmax)
 
-        domain.deltatime_h = newdt
+        domain.deltatime = newdt
     end
 
     # try to prevent very small scaling on the next cycle
-    if domain.deltatime_h < targetdt < 4.0 * domain.deltatime_h / 3.0
-        targetdt = 4.0 * domain.deltatime_h / 3.0
+    if domain.deltatime < targetdt < 4.0 * domain.deltatime / 3.0
+        targetdt = 4.0 * domain.deltatime / 3.0
     end
 
-    if targetdt < domain.deltatime_h
-        domain.deltatime_h = targetdt
+    if targetdt < domain.deltatime
+        domain.deltatime = targetdt
     end
-    domain.time_h += domain.deltatime_h
+    domain.time += domain.deltatime
     domain.cycle += 1
 end
 
@@ -835,104 +828,10 @@ function initStressTermsForElems(domain::Domain, sigxx, sigyy, sigzz)
     sigzz .=  .- domain.p .- domain.q
 end
 
-function calcElemShapeFunctionDerivatives(x, y, z, b, el_volume, k)
-
-  x0 = x[1]
-  x1 = x[2]
-  x2 = x[3]
-  x3 = x[4]
-  x4 = x[5]
-  x5 = x[6]
-  x6 = x[7]
-  x7 = x[8]
-
-  y0 = y[1]
-  y1 = y[2]
-  y2 = y[3]
-  y3 = y[4]
-  y4 = y[5]
-  y5 = y[6]
-  y6 = y[7]
-  y7 = y[8]
-
-  z0 = z[1]
-  z1 = z[2]
-  z2 = z[3]
-  z3 = z[4]
-  z4 = z[5]
-  z5 = z[6]
-  z6 = z[7]
-  z7 = z[8]
-
-  fjxxi = .125 * ( (x6-x0) + (x5-x3) - (x7-x1) - (x4-x2) )
-  fjxet = .125 * ( (x6-x0) - (x5-x3) + (x7-x1) - (x4-x2) )
-  fjxze = .125 * ( (x6-x0) + (x5-x3) + (x7-x1) + (x4-x2) )
-
-  fjyxi = .125 * ( (y6-y0) + (y5-y3) - (y7-y1) - (y4-y2) )
-  fjyet = .125 * ( (y6-y0) - (y5-y3) + (y7-y1) - (y4-y2) )
-  fjyze = .125 * ( (y6-y0) + (y5-y3) + (y7-y1) + (y4-y2) )
-
-  fjzxi = .125 * ( (z6-z0) + (z5-z3) - (z7-z1) - (z4-z2) )
-  fjzet = .125 * ( (z6-z0) - (z5-z3) + (z7-z1) - (z4-z2) )
-  fjzze = .125 * ( (z6-z0) + (z5-z3) + (z7-z1) + (z4-z2) )
-
-  # compute cofactors
-  cjxxi =    (fjyet * fjzze) - (fjzet * fjyze)
-  cjxet =  - (fjyxi * fjzze) + (fjzxi * fjyze)
-  cjxze =    (fjyxi * fjzet) - (fjzxi * fjyet)
-
-  cjyxi =  - (fjxet * fjzze) + (fjzet * fjxze)
-  cjyet =    (fjxxi * fjzze) - (fjzxi * fjxze)
-  cjyze =  - (fjxxi * fjzet) + (fjzxi * fjxet)
-
-  cjzxi =    (fjxet * fjyze) - (fjyet * fjxze)
-  cjzet =  - (fjxxi * fjyze) + (fjyxi * fjxze)
-  cjzze =    (fjxxi * fjyet) - (fjyxi * fjxet)
-
-  # calculate partials :
-  #     this need only be done for l = 0,1,2,3   since , by symmetry ,
-  #     (6,7,4,5) = - (0,1,2,3) .
-  b[1,1] =   -  cjxxi  -  cjxet  -  cjxze
-  b[2,1] =      cjxxi  -  cjxet  -  cjxze
-  b[3,1] =      cjxxi  +  cjxet  -  cjxze
-  b[4,1] =   -  cjxxi  +  cjxet  -  cjxze
-  b[5,1] = -b[3,1]
-  b[6,1] = -b[4,1]
-  b[7,1] = -b[1,1]
-  b[8,1] = -b[2,1]
-
-  b[1,2] =   -  cjyxi  -  cjyet  -  cjyze
-  b[2,2] =      cjyxi  -  cjyet  -  cjyze
-  b[3,2] =      cjyxi  +  cjyet  -  cjyze
-  b[4,2] =   -  cjyxi  +  cjyet  -  cjyze
-  b[5,2] = -b[3,2]
-  b[6,2] = -b[4,2]
-  b[7,2] = -b[1,2]
-  b[8,2] = -b[2,2]
-
-  b[1,3] =   -  cjzxi  -  cjzet  -  cjzze
-  b[2,3] =      cjzxi  -  cjzet  -  cjzze
-  b[3,3] =      cjzxi  +  cjzet  -  cjzze
-  b[4,3] =   -  cjzxi  +  cjzet  -  cjzze
-  b[5,3] = -b[3,3]
-  b[6,3] = -b[4,3]
-  b[7,3] = -b[1,3]
-  b[8,3] = -b[2,3]
-
-  # calculate jacobian determinant (volume)
-  el_volume[k] = 8.0 * ( fjxet * cjxet + fjyet * cjyet + fjzet * cjzet)
-end
-
-function sumElemFaceNormal(normalX0, normalY0, normalZ0,
-                             normalX1, normalY1, normalZ1,
-                             normalX2, normalY2, normalZ2,
-                             normalX3, normalY3, normalZ3,
-                              x0,  y0,  z0,
-                              x1,  y1,  z1,
-                              x2,  y2,  z2,
-                              x3,  y3,  z3     )
-
-
+function sumElemFaceNormal(x0,  y0,  z0,
+                           x1,  y1,  z1,
+                           x2,  y2,  z2,
+                           x3,  y3,  z3)
   RHALF = 0.5
   RQTR = 0.25
 
@@ -946,75 +845,83 @@ function sumElemFaceNormal(normalX0, normalY0, normalZ0,
   areaY = RQTR * (bisectZ0 * bisectX1 - bisectX0 * bisectZ1)
   areaZ = RQTR * (bisectX0 * bisectY1 - bisectY0 * bisectX1)
 
-  normalX0 = normalX0 + areaX
-  normalX1 = normalX1 + areaX
-  normalX2 = normalX2 + areaX
-  normalX3 = normalX3 + areaX
-
-  normalY0 = normalY0 + areaY
-  normalY1 = normalY1 + areaY
-  normalY2 = normalY2 + areaY
-  normalY3 = normalY3 + areaY
-
-  normalZ0 = normalZ0 + areaZ
-  normalZ1 = normalZ1 + areaZ
-  normalZ2 = normalZ2 + areaZ
-  normalZ3 = normalZ3 + areaZ
+  return areaX, areaY, areaZ
 end
 
-
-function calcElemNodeNormals(pf, x, y, z)
-
-    pfx = @view pf[:,1]
-    pfy = @view pf[:,2]
-    pfz = @view pf[:,3]
-
-    pfx .= 0.0
-    pfy .= 0.0
-    pfz .= 0.0
+function calcElemNodeNormals(x, y, z)
+    pf = zeros(MMatrix{8, 3, Float64})
+    pfx = view(pf, :, 1)
+    pfy = view(pf, :, 2)
+    pfz = view(pf, :, 3)
 
     # evaluate face one: nodes 1, 2, 3, 4
-    sumElemFaceNormal(pfx[1], pfy[1], pfz[1],
-                            pfx[2], pfy[2], pfz[2],
-                            pfx[3], pfy[3], pfz[3],
-                            pfx[4], pfy[4], pfz[4],
+    areaX, areaY, areaZ = sumElemFaceNormal(
                             x[1], y[1], z[1], x[2], y[2], z[2],
                             x[3], y[3], z[3], x[4], y[4], z[4])
+    pfx[1:4] .+= areaX
+    pfy[1:4] .+= areaY
+    pfz[1:4] .+= areaZ
+
     # evaluate face two: nodes 1, 5, 6, 2
-    sumElemFaceNormal(pfx[1], pfy[1], pfz[1],
-                            pfx[5], pfy[5], pfz[5],
-                            pfx[6], pfy[6], pfz[6],
-                            pfx[2], pfy[2], pfz[2],
+    areaX, areaY, areaZ = sumElemFaceNormal(
                             x[1], y[1], z[1], x[5], y[5], z[5],
                             x[6], y[6], z[6], x[2], y[2], z[2])
+
+    pfx[1:2] .+= areaX
+    pfx[5:6] .+= areaX
+    pfy[1:2] .+= areaY
+    pfy[5:6] .+= areaY
+    pfz[1:2] .+= areaZ
+    pfz[5:6] .+= areaZ
+
     #evaluate face three: nodes 2, 6, 7, 3
-    sumElemFaceNormal(pfx[2], pfy[2], pfz[2],
-                            pfx[6], pfy[6], pfz[6],
-                            pfx[7], pfy[7], pfz[7],
-                            pfx[3], pfy[3], pfz[3],
+    areaX, areaY, areaZ = sumElemFaceNormal(
                             x[2], y[2], z[2], x[6], y[6], z[6],
                             x[7], y[7], z[7], x[3], y[3], z[3])
+
+    pfx[2:3] .+= areaX
+    pfx[6:7] .+= areaX
+    pfy[2:3] .+= areaY
+    pfy[6:7] .+= areaY
+    pfz[2:3] .+= areaZ
+    pfz[6:7] .+= areaZ
+
     #evaluate face four: nodes 3, 7, 8, 4
-    sumElemFaceNormal(pfx[3], pfy[3], pfz[3],
-                            pfx[7], pfy[7], pfz[7],
-                            pfx[8], pfy[8], pfz[8],
-                            pfx[4], pfy[4], pfz[4],
+    areaX, areaY, areaZ = sumElemFaceNormal(
                             x[3], y[3], z[3], x[7], y[7], z[7],
                             x[8], y[8], z[8], x[4], y[4], z[4])
+
+    pfx[3:4] .+= areaX
+    pfx[7:8] .+= areaX
+    pfy[3:4] .+= areaY
+    pfy[7:8] .+= areaY
+    pfz[3:4] .+= areaZ
+    pfz[7:8] .+= areaZ
+
     # evaluate face five: nodes 4, 8, 5, 1
-    sumElemFaceNormal(pfx[4], pfy[4], pfz[4],
-                            pfx[8], pfy[8], pfz[8],
-                            pfx[5], pfy[5], pfz[5],
-                            pfx[1], pfy[1], pfz[1],
+    areaX, areaY, areaZ = sumElemFaceNormal(
                             x[4], y[4], z[4], x[8], y[8], z[8],
                             x[5], y[5], z[5], x[1], y[1], z[1])
+
+    pfx[1]    += areaX
+    pfx[4:5] .+= areaX
+    pfx[8]    += areaX
+    pfy[1]    += areaY
+    pfy[4:5] .+= areaY
+    pfy[8]    += areaY
+    pfy[1]    += areaY
+    pfz[4:5] .+= areaZ
+    pfz[8]    += areaZ
+
     # evaluate face six: nodes 5, 8, 7, 6
-    sumElemFaceNormal(pfx[5], pfy[5], pfz[5],
-                            pfx[8], pfy[8], pfz[8],
-                            pfx[7], pfy[7], pfz[7],
-                            pfx[6], pfy[6], pfz[6],
+    areaX, areaY, areaZ = sumElemFaceNormal(
                             x[5], y[5], z[5], x[8], y[8], z[8],
                             x[7], y[7], z[7], x[6], y[6], z[6])
+    pfx[5:8] .+= areaX
+    pfy[5:8] .+= areaY
+    pfz[5:8] .+= areaZ
+
+    return pf
 end
 
 function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_elem,  fz_elem, k)
@@ -1026,59 +933,11 @@ function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_el
   stress_yy = sig_yy[k]
   stress_zz = sig_zz[k]
 
-  pfx0 = B[1,1]
-  pfx1 = B[2,1]
-  pfx2 = B[3,1]
-  pfx3 = B[4,1]
-  pfx4 = B[5,1]
-  pfx5 = B[6,1]
-  pfx6 = B[7,1]
-  pfx7 = B[8,1]
-
-  pfy0 = B[1,2]
-  pfy1 = B[2,2]
-  pfy2 = B[3,2]
-  pfy3 = B[4,2]
-  pfy4 = B[5,2]
-  pfy5 = B[6,2]
-  pfy6 = B[7,2]
-  pfy7 = B[8,2]
-
-  pfz0 = B[1,3]
-  pfz1 = B[2,3]
-  pfz2 = B[3,3]
-  pfz3 = B[4,3]
-  pfz4 = B[5,3]
-  pfz5 = B[6,3]
-  pfz6 = B[7,3]
-  pfz7 = B[8,3]
-
-  fx[1] = -( stress_xx * pfx0 )
-  fx[2] = -( stress_xx * pfx1 )
-  fx[3] = -( stress_xx * pfx2 )
-  fx[4] = -( stress_xx * pfx3 )
-  fx[5] = -( stress_xx * pfx4 )
-  fx[6] = -( stress_xx * pfx5 )
-  fx[7] = -( stress_xx * pfx6 )
-  fx[8] = -( stress_xx * pfx7 )
-
-  fy[1] = -( stress_yy * pfy0  )
-  fy[2] = -( stress_yy * pfy1  )
-  fy[3] = -( stress_yy * pfy2  )
-  fy[4] = -( stress_yy * pfy3  )
-  fy[5] = -( stress_yy * pfy4  )
-  fy[6] = -( stress_yy * pfy5  )
-  fy[7] = -( stress_yy * pfy6  )
-  fy[8] = -( stress_yy * pfy7  )
-
-  fz[1] = -( stress_zz * pfz0 )
-  fz[2] = -( stress_zz * pfz1 )
-  fz[3] = -( stress_zz * pfz2 )
-  fz[4] = -( stress_zz * pfz3 )
-  fz[5] = -( stress_zz * pfz4 )
-  fz[6] = -( stress_zz * pfz5 )
-  fz[7] = -( stress_zz * pfz6 )
-  fz[8] = -( stress_zz * pfz7 )
+  @inbounds begin
+    fx[:] = -stress_xx .* B[:, 1]
+    fy[:] = -stress_yy .* B[:, 2]
+    fz[:] = -stress_zz .* B[:, 3]
+  end
 end
 
 
@@ -1087,24 +946,18 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
     # loop over all elements
     numElem8 = domain.numElem*8
     T = typeof(domain.x)
-    x_local = T(undef, 8)
-    y_local = T(undef, 8)
-    z_local = T(undef, 8)
     fx_elem = T(undef, numElem8)
     fy_elem = T(undef, numElem8)
     fz_elem = T(undef, numElem8)
     # FIXIT. This has to be device type
-    B = Matrix{eltype(T)}(undef, 8, 3)
+    nodelist = domain.nodelist
     for k in 1:domain.numElem
-        for lnode in 1:8
-            # INDEXING
-            gnode = domain.nodelist[lnode + (k-1)*8]
-            x_local[lnode] = domain.x[gnode]
-            y_local[lnode] = domain.y[gnode]
-            z_local[lnode] = domain.z[gnode]
-        end
-        calcElemShapeFunctionDerivatives(x_local, y_local, z_local, B, determ, k)
-        calcElemNodeNormals(B, x_local, y_local, z_local)
+        x_local = collectNodal(nodelist, domain.x, (k-1)*8)
+        y_local = collectNodal(nodelist, domain.y, (k-1)*8)
+        z_local = collectNodal(nodelist, domain.z, (k-1)*8)
+        _, detJ = calcElemShapeFunctionDerivatives(x_local, y_local, z_local)
+        determ[k] = detJ
+        B = calcElemNodeNormals(x_local, y_local, z_local)
         sumElemStressesToNodeForces(B, sigxx, sigyy, sigzz, fx_elem, fy_elem, fz_elem, k)
     end
 
@@ -1836,7 +1689,7 @@ function lagrangeNodal(domain::Domain)
 # #ifdef SEDOV_SYNC_POS_VEL_EARLY
 #    Domain_member fieldData[6] ;
 # #endif
-    delt = domain.deltatime_h
+    delt = domain.deltatime
 
     u_cut = domain.u_cut
     # time of boundary condition evaluation is beginning of step for force and
@@ -2919,7 +2772,7 @@ end
 
 function lagrangeElements(domain::Domain)
 
-    delt = domain.deltatime_h
+    delt = domain.deltatime
     domain.vnew = Vector{Float64}(undef, domain.numElem)
     domain.dxx = Vector{Float64}(undef, domain.numElem)
     domain.dyy = Vector{Float64}(undef, domain.numElem)
@@ -2993,7 +2846,7 @@ function calcCourantConstraintForElems(domain::Domain)
     # Don't try to register a time constraint if none of the elements
     # were active
     if courant_elem != -1
-        domain.dtcourant_h = dtcourant
+        domain.dtcourant = dtcourant
     end
 
     return nothing
@@ -3032,7 +2885,6 @@ function calcHydroConstraintForElems(domain::Domain)
 
     if hydro_elem != -1
         domain.dthydro = dthydro
-        domain.dthydro_h = dthydro
     end
     return nothing
 end

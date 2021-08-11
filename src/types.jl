@@ -115,18 +115,18 @@
     dtmax::FT                  # maximum allowable time increment g
     cycle::Int                 # iteration count for simulation g
 
-    dthydro_h::FT             # hydro time constraint g
-    d_dthydro_h::FT           # AD change of the hydro time constraint g
-    dtcourant_h::FT           # courant time constraint g
-    d_dtcourant_h::FT         # AD of the courant time constraint g
-    bad_q_h::IndexT              # flag to indicate Q error g
-    bad_vol_h::IndexT            # flag to indicate volume error g
+    dthydro::FT             # hydro time constraint g
+    d_dthydro::FT           # AD change of the hydro time constraint g
+    dtcourant::FT           # courant time constraint g
+    d_dtcourant::FT         # AD of the courant time constraint g
+    bad_q::IndexT              # flag to indicate Q error g
+    bad_vol::IndexT            # flag to indicate volume error g
 
     # cuda Events to indicate completion of certain kernels
     # TODO Will check later how this works with KA
     # cudaEvent_t time_constraint_computed;
-    time_h::FT                # current time g
-    deltatime_h::FT           # variable time increment g
+    time::FT                # current time g
+    deltatime::FT           # variable time increment g
 
     u_cut::FT                 # velocity tolerance g
     hgcoef::FT                # hourglass control g
