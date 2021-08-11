@@ -1311,7 +1311,7 @@ function commSyncPosVel(domain::Domain)
          for field in fields
             for i in 0:(dz-1)
                for j in 0:(dy-1)
-                  field[i*dx*dy+j*dx] = domain.commDataRecv[offset + i*dy + j]
+                  field[i*dx*dy+j*dx + 1] = domain.commDataRecv[offset + i*dy + j + 1]
                end
             end
             offset += opCount
