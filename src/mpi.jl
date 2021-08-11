@@ -70,3 +70,47 @@ getWtime(::Nothing) = time()
 
 comm_max(data::Float64, comm::MPI.Comm) = MPI.Allreduce(data, MPI.MAX, comm)
 comm_max(data::Float64, ::Nothing) = data
+
+# Assume 128 byte coherence
+# Assume Float64 is an "integral power of 2" bytes wide
+const CACHE_COHERENCE_PAD_REAL = div(128, sizeof(Float64))
+
+function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, planeOnly)
+    if domain.comm === nothing
+        return
+    end
+
+    error("Not implemented")
+end
+
+function commSend(domain::Domain, msgType, fields,
+                  dx, dy, dz, doSend, planeOnly)
+
+    if domain.comm === nothing
+        return
+    end
+
+    xferFields = length(fields)
+    error("not implemented")
+end
+
+function commSBN(domain::Domain, fields)
+    if domain.comm === nothing
+        return
+    end
+    error("not implemented")
+end
+
+function commMonoQ(domain::Domain)
+    if domain.comm === nothing
+        return
+    end
+    error("not implemented")
+end
+
+function commSyncPosVel(domain::Domain)
+    if domain.comm === nothing
+        return
+    end
+    error("not implemented")
+end
