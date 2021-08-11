@@ -298,31 +298,31 @@ end
 function commSend(domain::Domain, msgType, fields,
                   dx, dy, dz, doSend, planeOnly)
 
-    if domain.comm === nothing
-        return
-    end
+   if domain.comm === nothing
+      return
+   end
 
-    xferFields = length(fields)
-    error("not implemented")
+   xferFields = length(fields)
+   error("not implemented")
 end
 
 function commSBN(domain::Domain, fields)
-    if domain.comm === nothing
-        return
-    end
-    error("not implemented")
+   if domain.comm === nothing
+      return
+   end
+   error("not implemented")
 end
 
 function commMonoQ(domain::Domain)
-    if domain.comm === nothing
-        return
-    end
-    error("not implemented")
+   if domain.comm === nothing
+      return
+   end
+   error("not implemented")
 end
 
 function commSyncPosVel(domain::Domain)
-    if domain.comm === nothing
-        return
-    end
-    error("not implemented")
+   if domain.comm === nothing
+      return
+   end
+   error("not implemented")
 end
