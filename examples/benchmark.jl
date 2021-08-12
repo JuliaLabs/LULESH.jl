@@ -60,7 +60,7 @@ function main(nx, structured, num_iters, mpi, cuda)
 
     # End initialization
     if mpi
-        MPI.Barrier(prob.comm)
+        MPI.Barrier(prob.comm::MPI.Comm)
     end
 
     if getMyRank(prob.comm) == 0
