@@ -39,7 +39,7 @@ function main(nx, structured, num_iters, mpi, cuda)
     domain = Domain(prob)
     shadowDomain = Domain(prob)
 
-    getnodalMass = nodalMass(domain)
+    # getnodalMass = nodalMass(domain)
 
     # Initial domain boundary communication
     # commRecv(domain, MSG_COMM_SBN, 1,

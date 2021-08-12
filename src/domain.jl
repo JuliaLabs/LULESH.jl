@@ -699,6 +699,7 @@ function Domain(prob::LuleshProblem)
     nodalMass = Vector{prob.floattype}(undef, domNodes)
     volo = Vector{prob.floattype}(undef, domElems)
     elemMass = Vector{prob.floattype}(undef, domElems)
+    fill!(nodalMass, 0)
 
     for i in 1:domElems
         x_local = Vector{prob.floattype}(undef, 8)
@@ -3039,8 +3040,4 @@ function lagrangeLeapFrog(domain::Domain)
 
    calcTimeConstraintsForElems(domain)
    return nothing
-end
-
-function nodalMass(domain)
-    return i -> domain.nodalMass[i]
 end
