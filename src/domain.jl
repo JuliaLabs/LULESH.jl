@@ -569,10 +569,6 @@ function Domain(prob::LuleshProblem)
         if domain.m_planeLoc == 0
             domain.numSymmZ = (edgeElems+1)*(edgeElems+1)
         end
-        resize!(domain.symmX, edgeNodes*edgeNodes)
-        resize!(domain.symmY, edgeNodes*edgeNodes)
-        resize!(domain.symmZ, edgeNodes*edgeNodes)
-
         # Set up symmetry nodesets
 
         symmX = convert(Vector, domain.symmX)
@@ -1774,17 +1770,23 @@ end
 
 function applyAccelerationBoundaryConditionsForNodes(domain::Domain)
 
-  numNodeBC = (domain.sizeX+1)*(domain.sizeX+1)
-  @show domain.symmX
-  for i in 1:numNodeBC
-    domain.xdd[domain.symmX[i]+1] = 0.0
-  end
-  for i in 1:numNodeBC
-    domain.ydd[domain.symmY[i]+1] = 0.0
-  end
-  for i in 1:numNodeBC
-    domain.zdd[domain.symmZ[i]+1] = 0.0
-  end
+    numNodeBC = (domain.sizeX+1)*(domain.sizeX+1)
+
+    if length(domain.symmX) != 0
+        for i in 1:numNodeBC
+            domain.xdd[domain.symmX[i]+1] = 0.0
+        end
+    end
+    if length(domain.symmY) != 0
+        for i in 1:numNodeBC
+            domain.ydd[domain.symmY[i]+1] = 0.0
+        end
+        end
+    if length(domain.symmZ) != 0
+        for i in 1:numNodeBC
+            domain.zdd[domain.symmZ[i]+1] = 0.0
+        end
+    end
 end
 
 function calcVelocityForNodes(domain::Domain, dt, u_cut)
