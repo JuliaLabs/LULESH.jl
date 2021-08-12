@@ -3,6 +3,14 @@ using MPI
 using Printf
 using Enzyme
 
+Enzyme.API.printperf!(true)
+Enzyme.API.printall!(true)
+Enzyme.API.instname!(true)
+
+Enzyme.API.inlineall!(true)
+Enzyme.API.maxtypeoffset!(32)
+ccall((:EnzymeSetCLInteger, Enzyme.API.libEnzyme), Cvoid, (Ptr{Cvoid}, Int64), cglobal((:MaxTypeOffset, Enzyme.API.libEnzyme)), 32)
+
 function main(nx, structured, num_iters, mpi, cuda)
     # TODO: change default nr to 11
     nr = 1
@@ -39,7 +47,7 @@ function main(nx, structured, num_iters, mpi, cuda)
     domain = Domain(prob)
     shadowDomain = Domain(prob)
 
-    getnodalMass = nodalMass(domain)
+    # getnodalMass = nodalMass(domain)
 
     # Initial domain boundary communication
     # commRecv(domain, MSG_COMM_SBN, 1,
@@ -73,7 +81,9 @@ function main(nx, structured, num_iters, mpi, cuda)
     while domain.time < domain.stoptime
         # this has been moved after computation of volume forces to hide launch latencies
         timeIncrement!(domain)
-        lagrangeLeapFrog(domain)
+        # lagrangeLeapFrog(domain)
+        Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+
         # checkErrors(domain, its, myRank)
         if getMyRank(prob.comm) == 0
             @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time, domain.deltatime)

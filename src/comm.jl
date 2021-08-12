@@ -1,264 +1,1586 @@
    # assume communication to 6 neighbors by default
 using MPI
 function  get_neighbors(domain::Domain)
-   rowMin = rowMax = colMin = colMax = planeMin = planeMax = true
-
-   domain.m_rowLoc == 0 ? rowMin = false : rowMin = true
-   domain.m_rowLoc == domain.m_tp - 1 ? rowMax = false : rowMax = true
-   domain.m_colLoc == 0 ? colMin = false : colMin = true
-   domain.m_colLoc == domain.m_tp - 1 ? colMax = false : colMax = true
-   domain.m_planeLoc == 0 ? planeMin = false : planeMin = true
-   domain.m_planeLoc == domain.m_tp - 1 ? planeMax = false : planeMax = true
+   rowMin = !(domain.m_rowLoc == 0)
+   rowMax = !(domain.m_rowLoc == domain.m_tp - 1)
+   colMin = !(domain.m_colLoc == 0)
+   colMax = !(domain.m_colLoc == domain.m_tp - 1)
+   planeMin = !(domain.m_planeLoc == 0)
+   planeMax = !(domain.m_planeLoc == domain.m_tp - 1)
 
    return rowMin, rowMax, colMin, colMax, planeMin, planeMax
 end
 
-# doRecv flag only works with regular block structure
-function commRecv(
-      domain::Domain, msgType::Int, xferFields::IndexT,
-      dx::IndexT, dy::IndexT, dz::IndexT, doRecv::Bool, planeOnly::Bool, comm::MPI.Comm
-   )
+copyto_zero!(dest, doffs, src, soffs, nelems) = copyto!(dest, doffs+1, src, soffs+1, nelems)
+
+# Assume 128 byte coherence
+# Assume Float64 is an "integral power of 2" bytes wide
+const CACHE_COHERENCE_PAD_REAL = div(128, sizeof(Float64))
+
+function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, planeOnly)
+   if domain.comm === nothing
+       return
+   end
+
+   # post recieve buffers for all incoming messages
    maxPlaneComm = xferFields * domain.maxPlaneSize
    maxEdgeComm  = xferFields * domain.maxEdgeSize
+   pmsg = 0 # plane comm msg
+   emsg = 0 # edge comm msg
+   cmsg = 0 # corner comm msg
+
+   baseType = MPI.Datatype(Float64) # TODO support Float32
+
+   # assume communication to 6 neighbors by default
    rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
-   pmsg = emsg = cmsg = 1
-   # for r in domain.recvRequest
-   #    r = MPI.REQUEST_NULL
-   # end
-   myRank = getMyRank(comm)
+
+   resize!(domain.recvRequest, 26)
+
+   myRank = MPI.Comm_rank(domain.comm)
 
    # post receives
+   function irecv!(fromProc, offset, recvCount)
+      idx = offset + 1
+      data = view(domain.commDataRecv, idx:(idx+recvCount))
+      if fromProc < 0 || fromProc > MPI.Comm_size(domain.comm) - 1
+         @show MPI.Comm_rank(domain.comm)
+         if MPI.Comm_rank(domain.comm) == 0
+            @show fromProc
+            showerror(stderr, ErrorException("Rank"), catch_backtrace())
+         end
+      #   if MPI.Comm_rank(domain.comm) == 0
+      #   end
+      end
+      return MPI.Irecv!(MPI.Buffer(data), fromProc, msgType, domain.comm)
+   end
 
    # receive data from neighboring domain faces
-   if (planeMin && doRecv)
+   if planeMin && doRecv
       # contiguous memory
-      fromRank = myRank - domain.m_tp*domain.m_tp
+      fromProc = myRank - domain.m_tp^2
       recvCount = dx * dy * xferFields
-
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
-      domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      domain.recvRequest[pmsg+1] = req
       pmsg += 1
    end
-   if (planeMax)
+
+   if planeMax
       # contiguous memory
-       fromRank = myRank + domain.m_tp*domain.m_tp
-       recvCount = dx * dy * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
-      domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
-      pmsg += 1
-   end
-   if (rowMin && doRecv)
-      # semi-contiguous memory
-       fromRank = myRank - domain.m_tp
-       recvCount = dx * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
-      domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
-      pmsg += 1
-   end
-   if (rowMax)
-      # semi-contiguous memory
-       fromRank = myRank + domain.m_tp
-       recvCount = dx * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
-      domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
-      pmsg += 1
-   end
-   if (colMin && doRecv)
-      # scattered memory
-       fromRank = myRank - 1
-       recvCount = dy * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
-      domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
-      pmsg += 1
-   end
-   if (colMax)
-      # scattered memory
-       fromRank = myRank + 1
-       recvCount = dy * dz * xferFields
-      buf = @view domain.commDataRecv[pmsg * maxPlaneComm+1:pmsg * maxPlaneComm + recvCount]
-      domain.recvRequest[pmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      fromProc = myRank + domain.m_tp^2
+      recvCount = dx * dy * xferFields
+      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      domain.recvRequest[pmsg+1] = req
       pmsg += 1
    end
 
-   if (!planeOnly)
+   if rowMin && doRecv
+      # semi-contiguous memory
+      fromProc = myRank - domain.m_tp
+      recvCount = dx * dz * xferFields
+      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      domain.recvRequest[pmsg+1] = req
+      pmsg += 1
+   end
+
+   if rowMax
+      # semi-contiguous memory
+      fromProc = myRank + domain.m_tp
+      recvCount = dx * dz * xferFields
+      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      domain.recvRequest[pmsg+1] = req
+      pmsg += 1
+   end
+
+   if colMin && doRecv
+      # scattered memory
+      fromProc = myRank - 1
+      recvCount = dy * dz * xferFields
+      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      domain.recvRequest[pmsg+1] = req
+      pmsg += 1
+   end
+
+   if colMax
+      # scattered memory
+      fromProc = myRank + 1
+      recvCount = dy * dz * xferFields
+      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      domain.recvRequest[pmsg+1] = req
+      pmsg += 1
+   end
+
+   if !planeOnly
       # receive data from domains connected only by an edge
-      if (rowMin && colMin && doRecv)
-          fromRank = myRank - domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dz *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMin && colMin && doRecv
+         fromProc = myRank - domain.m_tp - 1
+         recvCount = dz * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMin && planeMin && doRecv)
-          fromRank = myRank - domain.m_tp*domain.m_tp - domain.m_tp
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dx *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMin && planeMin && doRecv
+         fromProc = myRank - domain.m_tp^2 - domain.m_tp
+         recvCount = dx * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (colMin && planeMin && doRecv)
-          fromRank = myRank - domain.m_tp*domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dy *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if colMin && planeMin && doRecv
+         fromProc = myRank - domain.m_tp^2 - 1
+         recvCount = dy * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMax && colMax)
-          fromRank = myRank + domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dz *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMax && colMax
+         fromProc = myRank + domain.m_tp + 1
+         recvCount = dz * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMax && planeMax)
-          fromRank = myRank + domain.m_tp*domain.m_tp + domain.m_tp
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dx *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMax && planeMax
+         fromProc = myRank + domain.m_tp^2 + domain.m_tp
+         recvCount = dx * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (colMax && planeMax)
-          fromRank = myRank + domain.m_tp*domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dy *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if colMax && planeMax
+         fromProc = myRank + domain.m_tp^2 + 1
+         recvCount = dy * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMax && colMin)
-          fromRank = myRank + domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dz *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMax && colMin
+         fromProc = myRank + domain.m_tp - 1
+         recvCount = dz * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMin && planeMax)
-          fromRank = myRank + domain.m_tp*domain.m_tp - domain.m_tp
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dx *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMin && planeMax
+         fromProc = myRank + domain.m_tp^2 - domain.m_tp
+         recvCount = dx * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (colMin && planeMax)
-          fromRank = myRank + domain.m_tp*domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dy *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if colMin && planeMax
+         fromProc = myRank + domain.m_tp^2 - 1
+         recvCount = dy * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMin && colMax && doRecv)
-          fromRank = myRank - domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dz *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMin && colMax && doRecv
+         fromProc = myRank - domain.m_tp + 1
+         recvCount = dz * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (rowMax && planeMin && doRecv)
-          fromRank = myRank - domain.m_tp*domain.m_tp + domain.m_tp
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dx *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if rowMax && planeMin && doRecv
+         fromProc = myRank - domain.m_tp^2 + domain.m_tp
+         recvCount = dx * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
-      if (colMax && planeMin && doRecv)
-          fromRank = myRank - domain.m_tp*domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm
-      buf = @view domain.commDataRecv[start:start + dy *xferFields]
-      domain.recvRequest[pmsg+emsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+      if colMax && planeMin && doRecv
+         fromProc = myRank - domain.m_tp^2 + 1
+         recvCount = dy * xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+1] = req
          emsg += 1
       end
 
       # receive data from domains connected only by a corner
-      if (rowMin && colMin && planeMin && doRecv)
+      if rowMin && colMin && planeMin && doRecv
          # corner at domain logical coord (0, 0, 0)
-          fromRank = myRank - domain.m_tp*domain.m_tp - domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank - domain.m_tp^2 - domain.m_tp - 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMin && colMin && planeMax)
+
+      if rowMin && colMin && planeMax
          # corner at domain logical coord (0, 0, 1)
-          fromRank = myRank + domain.m_tp*domain.m_tp - domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank + domain.m_tp^2 - domain.m_tp - 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMin && colMax && planeMin && doRecv)
+
+      if rowMin && colMax && planeMin && doRecv
          # corner at domain logical coord (1, 0, 0)
-          fromRank = myRank - domain.m_tp*domain.m_tp - domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank - domain.m_tp^2 - domain.m_tp + 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMin && colMax && planeMax)
+
+      if rowMin && colMax && planeMax
          # corner at domain logical coord (1, 0, 1)
-          fromRank = myRank + domain.m_tp*domain.m_tp - domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank + domain.m_tp^2 - domain.m_tp + 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMax && colMin && planeMin && doRecv)
+
+      if rowMax && colMin && planeMin && doRecv
          # corner at domain logical coord (0, 1, 0)
-          fromRank = myRank - domain.m_tp*domain.m_tp + domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank - domain.m_tp^2 + domain.m_tp - 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMax && colMin && planeMax)
+
+      if rowMax && colMin && planeMax
          # corner at domain logical coord (0, 1, 1)
-          fromRank = myRank + domain.m_tp*domain.m_tp + domain.m_tp - 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank + domain.m_tp^2 + domain.m_tp - 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMax && colMax && planeMin && doRecv)
+
+      if rowMax && colMax && planeMin && doRecv
          # corner at domain logical coord (1, 1, 0)
-          fromRank = myRank - domain.m_tp*domain.m_tp + domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank - domain.m_tp^2 + domain.m_tp + 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
-      if (rowMax && colMax && planeMax)
+
+      if rowMax && colMax && planeMax
          # corner at domain logical coord (1, 1, 1)
-         fromRank = myRank + domain.m_tp*domain.m_tp + domain.m_tp + 1
-        start = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg
-      buf = @view domain.commDataRecv[start:start + xferFields]
-      domain.recvRequest[pmsg+emsg+cmsg] = MPI.Irecv!(buf, fromRank, msgType, comm)
+         fromProc = myRank + domain.m_tp^2 + domain.m_tp + 1
+         recvCount = xferFields
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         req = irecv!(fromProc, offset, recvCount)
+         domain.recvRequest[pmsg+emsg+cmsg+1] = req
          cmsg += 1
       end
    end
+
+   # Should we:
+   #    resize!(domain.recvRequest, pmsg+emsg+cmsg)
 end
 
-# function CommSend(
-# 		domain::Domain, msgType::Int,
-# 		dx::IndexT, dy::IndexT, dz::IndexT, doSend::Bool, planeOnly::Bool, comm::MPI.Comm
-# 	)
-# 	maxPlaneComm = xferFields * domain.maxPlaneSize()
-# 	maxEdgeComm  = xferFields * domain.maxEdgeSize()
-# 	rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
-# 	pmsg = emsg = cmsg = 1
-# 	domain.sendRequest .= MPI.MPI_REQUEST_NULL
-# 	myRank = getMyRank(comm)
+function commSend(domain::Domain, msgType, fields,
+                  dx, dy, dz, doSend, planeOnly)
 
-# #    Index_t xferFields = sizeof...(fields);
-# #    Domain_member fieldData[xferFields];
-# #    {size_t i=0;
-# #        ((fieldData[i++] = fields),...);
-# #     }
+   if domain.comm === nothing
+      return
+   end
+
+   xferFields = length(fields)
+
+   # post recieve buffers for all incoming messages
+   maxPlaneComm = xferFields * domain.maxPlaneSize
+   maxEdgeComm  = xferFields * domain.maxEdgeSize
+   pmsg = 0 # plane comm msg
+   emsg = 0 # edge comm msg
+   cmsg = 0 # corner comm msg
+
+   # MPI_Status status[26] ;
+
+   # assume communication to 6 neighbors by default
+   rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+
+   resize!(domain.sendRequest, 26)
+   myRank = MPI.Comm_rank(domain.comm)
+
+   # post sends
+   if planeMin || planeMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      sendCount = dx * dy
+
+      if planeMin
+         # contiguous memory
+         srcOffset = 0
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            copyto_zero!(domain.commDataSend, offset, field, srcOffset, sendCount)
+            offset += sendCount
+         end
+         idx = pmsg * maxPlaneComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
+
+         otherRank = myRank - domain.m_tp^2
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+1] = req
+         pmsg += 1
+      end
+
+      if planeMax && doSend
+         # contiguous memory
+         srcOffset = dx*dy*(dz - 1)
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            copyto_zero!(domain.commDataSend, offset, field, srcOffset, sendCount)
+            offset += sendCount
+         end
+         idx = pmsg * maxPlaneComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
+
+         otherRank = myRank + domain.m_tp^2
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+1] = req
+         pmsg += 1
+      end
+   end
+
+   if rowMin | rowMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      sendCount = dx * dz
+
+      if rowMin
+         # contiguous memory
+         srcOffset = 0
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               copyto_zero!(domain.commDataSend, offset+i*dx, field, srcOffset+i*dx*dy, dx)
+            end
+            offset += sendCount
+         end
+         idx = pmsg * maxPlaneComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
+
+         otherRank = myRank - domain.m_tp
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+1] = req
+         pmsg += 1
+      end
+      if rowMax && doSend
+         # contiguous memory
+         srcOffset = dx*(dy - 1)
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               copyto_zero!(domain.commDataSend, offset+i*dx , field, srcOffset+i*dx*dy, dx)
+            end
+            offset += sendCount
+         end
+         idx = pmsg * maxPlaneComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
+
+         otherRank = myRank + domain.m_tp
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+1] = req
+         pmsg += 1
+      end
+   end
+
+   if colMin | colMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      sendCount = dy * dz
+
+      if colMin
+         # contiguous memory
+         srcOffset = 0
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dy-1)
+                  domain.commDataSend[offset+i*dy+j + 1] = field[srcOffset+i*dx*dy+j*dx + 1]
+               end
+            end
+            offset += sendCount
+         end
+         idx = pmsg * maxPlaneComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
+
+         otherRank = myRank - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+1] = req
+         pmsg += 1
+      end
+
+      if colMax && doSend
+         # contiguous memory
+         srcOffset = dx - 1
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dy-1)
+                  domain.commDataSend[offset+i*dy+j + 1] = field[srcOffset+j*dx + 1]
+               end
+            end
+            offset += sendCount
+         end
+         idx = pmsg * maxPlaneComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * sendCount)))
+         otherRank = myRank + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+1] = req
+         pmsg += 1
+      end
+   end
+   if !planeOnly
+      if rowMin && colMin
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         for field in fields
+            for i in 0:(dz-1)
+               domain.commDataSend[offset+i + 1] = field[i*dx*dy + 1]
+            end
+            offset += dz
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
+         otherRank = myRank - domain.m_tp - 1
+
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMin && planeMin
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         for field in fields
+            for i in 0:(dx-1)
+               domain.commDataSend[offset+i + 1] = field[i + 1]
+            end
+            offset += dx
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if colMin && planeMin
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         for field in fields
+            for i in 0:(dy-1)
+               domain.commDataSend[offset+i + 1] = field[i*dx + 1]
+            end
+            offset += dy
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
+         otherRank = myRank - domain.m_tp^2 - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMax && colMax && doSend
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*dy - 1
+         for field in fields
+            for i in 0:(dz-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx*dy + 1]
+            end
+            offset += dz
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
+         otherRank = myRank + domain.m_tp + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMax && planeMax && doSend
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*(dy-1) + dx*dy*(dz-1)
+         for field in fields
+            for i in 0:(dx-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i + 1]
+            end
+            offset += dx
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if colMax && planeMax && doSend
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*dy*(dz-1) + dx - 1
+         for field in fields
+            for i in 0:(dy-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx + 1]
+            end
+            offset += dy
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
+         otherRank = myRank + domain.m_tp^2 + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMax && colMin && doSend
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*(dy-1)
+         for field in fields
+            for i in 0:(dz-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx*dy + 1]
+            end
+            offset += dz
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
+         otherRank = myRank + domain.m_tp - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMin && planeMax && doSend
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*dy*(dz-1)
+         for field in fields
+            for i in 0:(dx-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i + 1]
+            end
+            offset += dx
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
+         otherRank = myRank + domain.m_tp^2 - domain.m_tp
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if colMin && planeMax && doSend
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*dy*(dz-1)
+         for field in fields
+            for i in 0:(dy-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx + 1]
+            end
+            offset += dy
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
+         otherRank = myRank + domain.m_tp^2 - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMin && colMax
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx - 1
+         for field in fields
+            for i in 0:(dz-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx*dy + 1]
+            end
+            offset += dz
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dz)))
+         otherRank = myRank - domain.m_tp + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMax && planeMin
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx*(dy - 1)
+         for field in fields
+            for i in 0:(dx-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i + 1]
+            end
+            offset += dx
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dx)))
+         otherRank = myRank - domain.m_tp^2 + domain.m_tp
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if colMax && planeMin
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         srcOffset = dx - 1
+         for field in fields
+            for i in 0:(dy-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx + 1]
+            end
+            offset += dy
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
+         src = view(domain.commDataSend, idx:(idx+(xferFields * dy)))
+         otherRank = myRank - domain.m_tp^2 + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+1] = req
+         emsg += 1
+      end
+
+      if rowMin && colMin && planeMin
+         # corner at domain logical coord (0, 0, 0) */
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm +  cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMin && colMin && planeMax && doSend
+         # corner at domain logical coord (0, 0, 1)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[dx*dy*(dz-1) + 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank + domain.m_tp^2 - domain.m_tp - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMin && colMax && planeMin
+         # corner at domain logical coord (1, 0, 0)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[(dx - 1) + 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank - domain.m_tp^2 - domain.m_tp + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMin && colMax && planeMax && doSend
+         # corner at domain logical coord (1, 0, 1)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[dx*dy*(dz - 1) + (dx - 1) + 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank + domain.m_tp^2 - domain.m_tp + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMax && colMin && planeMin
+         # corner at domain logical coord (0, 1, 0)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[dx*(dy - 1) + 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank - domain.m_tp^2 + domain.m_tp - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMax && colMin && planeMax && doSend
+         # corner at domain logical coord (0, 1, 1)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[dx*dy*(dz - 1) + dx*(dy - 1)+ 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp - 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMax && colMax && planeMin
+         # corner at domain logical coord (1, 1, 0)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[dx*dy - 1 + 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank - domain.m_tp^2 + domain.m_tp + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+
+      if rowMax && colMax && planeMax && doSend
+         # corner at domain logical coord (1, 1, 1)
+         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+         for (fi, field) in enumerate(fields)
+            # fi is one based already
+            domain.commDataSend[offset+fi] = field[dx*dy*dz - 1 + 1]
+         end
+         idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL + 1
+         src = view(domain.commDataSend, idx:(idx+xferFields))
+         otherRank = myRank + domain.m_tp^2 + domain.m_tp + 1
+         req = MPI.Isend(MPI.Buffer(src), otherRank, msgType, domain.comm)
+         domain.sendRequest[pmsg+emsg+cmsg+1] = req
+         cmsg += 1
+      end
+   end
+
+   resize!(domain.sendRequest, pmsg+emsg+cmsg)
+   MPI.Waitall!(domain.sendRequest)
+end
+
+function commSBN(domain::Domain, fields)
+   if domain.comm === nothing
+      return
+   end
+
+   xferFields = length(fields)
+
+   maxPlaneComm = xferFields * domain.maxPlaneSize
+   maxEdgeComm  = xferFields * domain.maxEdgeSize
+   pmsg = 0 # plane comm msg
+   emsg = 0 # edge comm msg
+   cmsg = 0 # corner comm msg
+
+   dx = domain.sizeX + 1
+   dy = domain.sizeY + 1
+   dz = domain.sizeZ + 1
+
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+
+   myRank = MPI.Comm_rank(domain.comm)
+
+   if planeMin || planeMax
+      opCount = dx * dy ;
+
+      if planeMin
+         srcaddr = pmsg * maxPlaneComm;
+         status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
+         for field in fields
+            for i in 1:opCount
+               field[i] += domain.commDataRecv[srcaddr+i]
+            end
+            srcaddr += opCount
+         end
+         pmsg += 1
+      end
+      if planeMax
+         srcaddr = pmsg * maxPlaneComm;
+         status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
+         for field in fields
+            for i in 1:opCount
+               field[dx*dy*(dz-1) + i] += domain.commDataRecv[srcaddr+i]
+            end
+            srcaddr += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if rowMin || rowMax
+      opCount = dx * dz
+
+      if rowMin
+         srcaddr = pmsg * maxPlaneComm;
+         status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dx-1)
+                  field[i*dx*dy + j + 1] += domain.commDataRecv[srcaddr + i*dx + j + 1]
+               end
+            end
+            srcaddr += opCount
+         end
+         pmsg += 1
+      end
+
+      if rowMax
+         srcaddr = pmsg * maxPlaneComm;
+         status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dx-1)
+                  field[dx*(dy-1) + i*dx*dy + j + 1] += domain.commDataRecv[srcaddr + i*dx + j + 1]
+               end
+            end
+            srcaddr += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if colMin || colMax
+      opCount = dy * dz ;
+
+      if colMin
+         srcaddr = pmsg * maxPlaneComm;
+         status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dy-1)
+                  field[i*dx*dy + j*dx + 1] += domain.commDataRecv[srcaddr + i*dy + j + 1]
+               end
+            end
+            srcaddr += opCount
+         end
+         pmsg += 1
+      end
+
+      if colMax
+         srcaddr = pmsg * maxPlaneComm;
+         status = MPI.Wait!(domain.recvRequest[pmsg + 1]);
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dy-1)
+                  field[dx - 1 + i*dx*dy + j*dx + 1] += domain.commDataRecv[srcaddr + i*dy + j + 1]
+               end
+            end
+            srcaddr += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if rowMin && colMin
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dz-1)
+            # (domain.*dest)(i*dx*dy) += srcaddr[i] ;
+            field[i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dz
+      end
+      emsg += 1
+   end
+
+   if rowMin && planeMin
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dx-1)
+            # (domain.*dest)(i) += srcaddr[i] ;
+            field[i + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dx
+      end
+      emsg += 1
+   end
+
+   if colMin && planeMin
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dy-1)
+            # (domain.*dest)(i*dx) += srcaddr[i] ;
+            field[i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dy
+      end
+      emsg += 1
+   end
+
+   if rowMax && colMax
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dz-1)
+            # (domain.*dest)(dx*dy - 1 + i*dx*dy) += srcaddr[i] ;
+            field[dx*dy - 1 + i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dz
+      end
+      emsg += 1
+   end
+
+   if rowMax && planeMax
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dx-1)
+            # (domain.*dest)(dx*(dy-1) + dx*dy*(dz-1) + i) += srcaddr[i] ;
+            field[dx*(dy-1) + dx*dy*(dz-1) + i + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dx
+      end
+      emsg += 1
+   end
+
+   if colMax && planeMax
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dy-1)
+            # (domain.*dest)(dx*dy*(dz-1) + dx - 1 + i*dx) += srcaddr[i] ;
+            field[dx*dy*(dz-1) + dx - 1 + i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dy
+      end
+      emsg += 1
+   end
+
+   if rowMax && colMin
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dz-1)
+            # (domain.*dest)(dx*(dy-1) + i*dx*dy) += srcaddr[i] ;
+            field[dx*(dy-1) + i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dz
+      end
+      emsg += 1
+   end
+
+   if rowMin && planeMax
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dx-1)
+            # (domain.*dest)(dx*dy*(dz-1) + i) += srcaddr[i] ;
+            field[dx*dy*(dz-1) + i + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dx
+      end
+      emsg += 1
+   end
+
+   if colMin && planeMax
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dy-1)
+            # (domain.*dest)(dx*dy*(dz-1) + i*dx) += srcaddr[i] ;
+            field[dx*dy*(dz-1) + i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dy
+      end
+      emsg += 1
+   end
+
+   if rowMin && colMax
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dz-1)
+            # (domain.*dest)(dx - 1 + i*dx*dy) += srcaddr[i] ;
+            field[dx - 1 + i*dx*dy + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dz
+      end
+      emsg += 1
+   end
+
+   if rowMax && planeMin
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dx-1)
+            # (domain.*dest)(dx*(dy - 1) + i) += srcaddr[i] ;
+            field[dx*(dy-1) + i + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dx
+      end
+      emsg += 1
+   end
+
+   if colMax && planeMin
+      srcaddr = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg + 1])
+      for field in fields
+         for i in 0:(dy-1)
+            # (domain.*dest)(dx - 1 + i*dx) += srcaddr[i] ;
+            field[dx - 1 + i*dx + 1] += domain.commDataRecv[srcaddr + i + 1]
+         end
+         srcaddr += dy
+      end
+      emsg += 1
+   end
+
+   function triple!(idx)
+      comBuf = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      status = MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg + 1])
+      for (fi, field) in enumerate(fields)
+         field[idx+1] += domain.commDataRecv[comBuf + fi] # No 1 here as already taken care of by fi
+      end
+      cmsg += 1
+   end
+
+   if rowMin && colMin && planeMin
+      idx = 0
+      triple!(idx)
+   end
+
+   if rowMin && colMin && planeMax
+      idx = dx*dy*(dz - 1)
+      triple!(idx)
+   end
+
+   if rowMin && colMax && planeMin
+      idx = dx - 1
+      triple!(idx)
+   end
+
+   if rowMin && colMax && planeMax
+      idx = dx*dy*(dz - 1) + (dx - 1)
+      triple!(idx)
+   end
+
+   if rowMax && colMin && planeMin
+      idx = dx*(dy - 1)
+      triple!(idx)
+   end
+
+   if rowMax && colMin && planeMax
+      idx = dx*dy*(dz - 1) + dx*(dy - 1)
+      triple!(idx)
+   end
+
+   if rowMax && colMax && planeMin
+      idx = dx*dy - 1
+      triple!(idx)
+   end
+
+   if rowMax && colMax && planeMax
+      idx = dx*dy*dz - 1
+      triple!(idx)
+   end
+end
+
+function commMonoQ(domain::Domain)
+   if domain.comm === nothing
+       return
+   end
+
+   xferFields = 3 # delv_xi, delv_eta, delv_zeta
+   fields = (domain.delv_xi, domain.delv_eta, domain.delv_zeta)
+   maxPlaneComm = xferFields * domain.maxPlaneSize
+
+   pmsg = 0 # plane comm msg
+   dx = domain.sizeX
+   dy = domain.sizeY
+   dz = domain.sizeZ
+
+   # assume communication to 6 neighbors by default
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+
+   numElem = domain.numElem
+
+   # point into ghost data area
+   fieldOffsets = [numElem, numElem, numElem]
+
+   myRank = MPI.Comm_rank(domain.comm)
+
+   if planeMin || planeMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE */
+      opCount = dx * dy
+
+      if planeMin
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+      if planeMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if rowMin || rowMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dx * dz
+
+      if rowMin
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+
+      if rowMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+   end
+   if colMin || colMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dy * dz
+
+      if colMin
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+      if colMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for (fi, field) in enumerate(fields)
+            fOffset = fieldOffsets[fi]
+            copyto_zero!(field, fOffset, domain.commDataRecv, offset, opCount)
+
+            offset += opCount
+            fieldOffsets[fi] += opCount
+         end
+         pmsg += 1
+      end
+   end
+   return nothing
+end
+
+function commSyncPosVel(domain::Domain)
+   if domain.comm === nothing
+      return
+   end
+   doRecv = false
+   xferFields = 6 ; # x, y, z, xd, yd, zd
+   fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+   maxPlaneComm = xferFields * domain.maxPlaneSize
+   maxEdgeComm  = xferFields * domain.maxEdgeSize
+   pmsg = 0 # plane comm msg
+   emsg = 0 # edge comm msg
+   cmsg = 0 # corner comm msg
+   dx = domain.sizeX + 1
+   dy = domain.sizeY + 1
+   dz = domain.sizeZ + 1
+
+   # assume communication to 6 neighbors by default
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+
+   myRank = MPI.Comm_rank(domain.comm)
+
+   if planeMin | planeMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dx * dy
+
+      if planeMin && doRecv
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            copyto_zero!(field, 0, domain.commDataRecv, offset, opCount)
+            offset += opCount
+         end
+         pmsg += 1
+      end
+
+      if planeMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+
+         destOffset = dx*dy*(dz - 1)
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            copyto_zero!(field, destOffset, domain.commDataRecv, offset, opCount)
+            offset += opCount
+         end
+         pmsg += 1
+      end
+
+   end
+   if rowMin | rowMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dx * dz
+
+      if rowMin && doRecv
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               destOffset = i*dx*dy
+               copyto_zero!(field, destOffset, domain.commDataRecv, offset + i*dx, dx)
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+      if rowMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               destOffset = dx*(dy - 1) + i*dx*dy
+               for j in 0:(dx-1)
+                  field[destOffset + j + 1] = domain.commDataRecv[offset + i*dx + j + 1]
+               end
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+   end
+   if colMin | colMax
+      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
+      opCount = dy * dz
+
+      if colMin && doRecv
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dy-1)
+                  field[i*dx*dy+j*dx + 1] = domain.commDataRecv[offset + i*dy + j + 1]
+               end
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+      if colMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         offset = pmsg * maxPlaneComm
+         destOffset = dx-1
+         for field in fields
+            for i in 0:(dz-1)
+               for j in 0:(dy-1)
+                  field[destOffset + i*dx*dy + j*dx + 1] = domain.commDataRecv[offset + i*dy + j + 1]
+               end
+            end
+            offset += opCount
+         end
+         pmsg += 1
+      end
+   end
+
+   if rowMin && colMin && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      for field in fields
+         for i in 0:(dz-1)
+            field[i*dx*dy + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dz
+      end
+      emsg += 1
+   end
+
+   if rowMin && planeMin && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      for field in fields
+         copyto_zero!(field, 0, domain.commDataRecv, offset, dx)
+         offset += dx
+      end
+      emsg += 1
+   end
+
+   if colMin && planeMin && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      for field in fields
+         for i in 0:(dy-1)
+            field[i*dx + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dy
+      end
+      emsg += 1
+   end
+
+   if rowMax && colMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*dy - 1
+      for field in fields
+         for i in 0:(dz-1)
+            field[destOffset + i*dx*dy + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dz
+      end
+      emsg += 1
+   end
+
+   if rowMax && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*(dy-1) + dx*dy*(dz-1)
+      for field in fields
+         copyto_zero!(field, destOffset, domain.commDataRecv, offset, dx)
+         offset += dx
+      end
+      emsg += 1
+   end
+
+   if colMax && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*dy*(dz-1) + dx - 1
+      for field in fields
+         for i in 0:(dy-1)
+            field[destOffset + i*dx + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dy
+      end
+      emsg += 1
+   end
+
+   if rowMax && colMin
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*(dy-1)
+      for field in fields
+         for i in 0:(dz-1)
+            field[destOffset + i*dx*dy + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dz
+      end
+      emsg += 1
+   end
+
+   if rowMin && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*dy*(dz-1)
+      for field in fields
+         copyto_zero!(field, destOffset, domain.commDataRecv, offset, dx)
+         offset += dx
+      end
+      emsg += 1
+   end
+
+   if colMin && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*dy*(dz-1)
+      for field in fields
+         for i in 0:(dy-1)
+            field[destOffset + i*dx + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dy
+      end
+      emsg += 1
+   end
+
+   if rowMin && colMax && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx-1
+      for field in fields
+         for i in 0:(dz-1)
+            field[destOffset + i*dx*dy + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dz
+      end
+      emsg += 1
+   end
+
+   if rowMax && planeMin && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx*(dy - 1)
+      for field in fields
+         copyto_zero!(field, destOffset, domain.commDataRecv, offset, dx)
+         offset += dx
+      end
+      emsg += 1
+   end
+
+   if colMax && planeMin && doRecv
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+      destOffset = dx - 1
+      for field in fields
+         for i in 0:(dy-1)
+            field[destOffset + i*dx + 1] = domain.commDataRecv[offset + i + 1]
+         end
+         offset += dy
+      end
+      emsg += 1
+   end
+
+   if rowMin && colMin && planeMin && doRecv
+      # corner at domain logical coord (0, 0, 0)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMin && colMin && planeMax
+      # corner at domain logical coord (0, 0, 1)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx*dy*(dz - 1)
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMin && colMax && planeMin && doRecv
+      # corner at domain logical coord (1, 0, 0)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx - 1
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMin && colMax && planeMax
+      # corner at domain logical coord (1, 0, 1)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx*dy*(dz - 1) + (dx - 1)
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMax && colMin && planeMin && doRecv
+      # corner at domain logical coord (0, 1, 0)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx*(dy - 1)
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMax && colMin && planeMax
+      # corner at domain logical coord (0, 1, 1)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx*dy*(dz - 1) + dx*(dy - 1)
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMax && colMax && planeMin && doRecv
+      # corner at domain logical coord (1, 1, 0)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx*dy - 1
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   if rowMax && colMax && planeMax
+      # corner at domain logical coord (1, 1, 1)
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      offset = pmsg * maxPlaneComm + emsg * maxEdgeComm + cmsg * CACHE_COHERENCE_PAD_REAL
+      idx = dx*dy*dz - 1
+      for (fi, field) in enumerate(fields)
+         # fi is one based
+         field[idx + 1] = domain.commDataRecv[offset + fi]
+      end
+      cmsg += 1
+   end
+
+   return nothing
+end

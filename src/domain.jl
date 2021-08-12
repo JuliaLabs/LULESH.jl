@@ -24,7 +24,7 @@ m_planeMin(domain::Domain) = (domain.m_planeLoc == 0)         ? false : true
 m_planeMax(domain::Domain) = (domain.m_planeLoc == domain.m_tp-1) ? false : true
 
 # host access
-get_nodalMass(idx::IndexT, dom::AbstractDomain) = dom.h_nodalMass[idx]
+get_nodalMass(idx::IndexT, dom::AbstractDomain) = dom.nodalMass[idx]
 
 colLoc(dom::AbstractDomain) = dom.m_colLoc
 rowLoc(dom::AbstractDomain) = dom.m_rowLoc
@@ -468,7 +468,6 @@ function Domain(prob::LuleshProblem)
     VDF = prob.devicetype{prob.floattype}
     VDI = prob.devicetype{IndexT}
     VDInt = prob.devicetype{Int}
-    numRanks = getNumRanks(prob.comm)
     colLoc = prob.col
     rowLoc = prob.row
     planeLoc = prob.plane
@@ -479,7 +478,7 @@ function Domain(prob::LuleshProblem)
     balance = prob.balance
     cost = prob.cost
     domain = Domain{prob.floattype}(
-        0, nothing,
+        prob.comm,
         VDI(), VDI(),
         VDI(), VDI(), VDI(), VDI(), VDI(), VDI(),
         VDInt(),
@@ -501,7 +500,7 @@ function Domain(prob::LuleshProblem)
         VDF(), VDF(), VDF(),
         VDF(), VDF(), VDF(),
         # FIXIT This is wrong
-        VDF(), Vector{prob.floattype}(),
+        VDF(),
         VDI(), VDI(), VDI(),
         VDInt(), VDInt(), VDI(),
         0.0, 0.0, 0.0, 0.0, 0.0, 0,
@@ -519,29 +518,13 @@ function Domain(prob::LuleshProblem)
         Vector{MPI.Request}(undef, 26), Vector{MPI.Request}(undef, 26)
     )
 
-    domain.max_streams = 32
-    # domain->streams.resize(domain->max_streams);
-    # TODO: CUDA stream stuff goes here
-    domain.streams = nothing
-
-# #   for (Int_t i=0;i<domain->max_streams;i++)
-# #     cudaStreamCreate(&(domain->streams[i]));
-
-# #   cudaEventCreateWithFlags(&domain->time_constraint_computed,cudaEventDisableTiming);
-
-#   Index_t domElems;
-#   Index_t domNodes;
-#   Index_t padded_domElems;
-
     nodelist = Vector{IndexT}()
     x = Vector{prob.floattype}()
     y = Vector{prob.floattype}()
     z = Vector{prob.floattype}()
 
     if structured
-
         domain.m_tp       = tp
-        # domain.m_numRanks = numRanks
 
         domain.m_colLoc   =   colLoc
         domain.m_rowLoc   =   rowLoc
@@ -566,7 +549,6 @@ function Domain(prob::LuleshProblem)
 
         # Build domain object here. Not nice.
 
-
         allocateElemPersistent!(domain, domElems)
         allocateNodalPersistent!(domain, domNodes)
 
@@ -587,10 +569,6 @@ function Domain(prob::LuleshProblem)
         if domain.m_planeLoc == 0
             domain.numSymmZ = (edgeElems+1)*(edgeElems+1)
         end
-        resize!(domain.symmX, edgeNodes*edgeNodes)
-        resize!(domain.symmY, edgeNodes*edgeNodes)
-        resize!(domain.symmZ, edgeNodes*edgeNodes)
-
         # Set up symmetry nodesets
 
         symmX = convert(Vector, domain.symmX)
@@ -721,6 +699,7 @@ function Domain(prob::LuleshProblem)
     nodalMass = Vector{prob.floattype}(undef, domNodes)
     volo = Vector{prob.floattype}(undef, domElems)
     elemMass = Vector{prob.floattype}(undef, domElems)
+    fill!(nodalMass, 0)
 
     for i in 1:domElems
         x_local = Vector{prob.floattype}(undef, 8)
@@ -774,10 +753,164 @@ function Domain(prob::LuleshProblem)
     # Setup region index sets. For now, these are constant sized
     # throughout the run, but could be changed every cycle to
     # simulate effects of ALE on the lagrange solver
+    createRegionIndexSets!(domain, nr, balance, prob.comm)
+    # Setup symmetry nodesets
+    setupSymmetryPlanes(domain, edgeNodes)
 
-    createRegionIndexSets!(domain, nr, balance, prob.comm);
+    # Setup element connectivities
+    setupElementConnectivities(domain, edgeElems)
+
+    # Setup symmetry planes and free surface boundary arrays
+    setupBoundaryConditions(domain, edgeElems)
     return domain
 end
+
+function  setupSymmetryPlanes(domain, edgeNodes)
+    nidx = 1
+    for i in 0:(edgeNodes-1)
+        planeInc = i*edgeNodes*edgeNodes
+        rowInc   = i*edgeNodes
+        for j in 0:(edgeNodes-1)
+            if domain.m_planeLoc == 0
+                domain.symmZ[nidx] = rowInc   + j
+            end
+            if domain.m_rowLoc == 0
+                domain.symmY[nidx] = planeInc + j
+            end
+            if domain.m_colLoc == 0
+                domain.symmX[nidx] = planeInc + j*edgeNodes
+            end
+            nidx += 1
+        end
+    end
+end
+
+function setupElementConnectivities(domain::Domain, edgeElems)
+    domain.lxim[1] = 1
+    for i in 1:(domain.numElem - 1)
+        domain.lxim[i+1] = i-1
+        domain.lxip[i] = i
+    end
+    domain.lxip[domain.numElem] = domain.numElem - 1
+
+    for i in 0:(edgeElems - 1)
+        domain.letam[i+1] = i
+        domain.letap[domain.numElem - edgeElems + i + 1] = i
+    end
+
+    for i in edgeElems:(domain.numElem - 1)
+        domain.letam[i+1] = i - edgeElems
+        domain.letap[i-edgeElems + 1] = i
+    end
+
+    for i in 0:(edgeElems*edgeElems - 1)
+        domain.lzetam[i+1] = i
+        domain.lzetap[domain.numElem - edgeElems*edgeElems + i + 1] = domain.numElem - edgeElems*edgeElems+i
+    end
+
+    for i in edgeElems*edgeElems:(domain.numElem - 1)
+        domain.lzetam[i+1] = i - edgeElems * edgeElems
+        domain.lzetap[i - edgeElems*edgeElems+1] = i
+    end
+end
+
+function setupBoundaryConditions(domain::Domain, edgeElems)
+  ghostIdx = Vector{IndexT}(undef, 6) # offsets to ghost locations
+
+  # set up boundary condition information
+  for i in 0:domain.numElem - 1
+    domain.elemBC[i+1] = 0
+  end
+
+  for i in 1:6
+    ghostIdx[i] = typemin(IndexT)
+  end
+
+  pidx = domain.numElem
+
+  if domain.m_planeMin != 0
+    ghostIdx[1] = pidx
+    pidx += domain.sizeX*domain.sizeY
+  end
+
+  if m_planeMax != 0
+    ghostIdx[2] = pidx
+    pidx += domain.sizeX*domain.sizeY
+  end
+
+  if m_rowMin != 0
+    ghostIdx[3] = pidx
+    pidx += domain.sizeX*domain.sizeZ
+  end
+
+  if m_rowMax != 0
+    ghostIdx[4] = pidx
+    pidx += domain.sizeX*domain.sizeZ
+  end
+
+  if m_colMin != 0
+    ghostIdx[5] = pidx
+    pidx += domain.sizeY*domain.sizeZ
+  end
+
+  if m_colMax != 0
+    ghostIdx[6] = pidx
+  end
+
+
+  # symmetry plane or free surface BCs
+
+    for i in 0:(edgeElems-1)
+        planeInc = i*edgeElems*edgeElems
+        rowInc   = i*edgeElems
+        for j in 0:(edgeElems-1)
+            if domain.m_planeLoc == 0
+                domain.elemBC[rowInc+j+1] |= ZETA_M_SYMM
+            else
+                domain.elemBC[rowInc+j+1] |= ZETA_M_COMM
+                domain.lzetam[rowInc+j+1] = ghostIdx[1] + rowInc + j
+            end
+
+            if domain.m_planeLoc == domain.m_tp-1
+                domain.elemBC[rowInc+j+domain.numElem-edgeElems*edgeElems+1] |= ZETA_P_FREE
+            else
+                domain.elemBC[rowInc+j+domain.numElem-edgeElems*edgeElems+1] |= ZETA_P_COMM
+                domain.lzetap[rowInc+j+domain.numElem-edgeElems*edgeElems+1] = ghostIdx[2] + rowInc + j
+            end
+
+            if domain.m_rowLoc == 0
+                domain.elemBC[planeInc+j+1] |= ETA_M_SYMM
+            else
+                domain.elemBC[planeInc+j+1] |= ETA_M_COMM
+                domain.letam[planeInc+j+1] = ghostIdx[3] + rowInc + j
+            end
+
+
+            if domain.m_rowLoc == domain.m_tp-1
+                domain.elemBC[planeInc+j+edgeElems*edgeElems-edgeElems+1] |= ETA_P_FREE
+            else
+                domain.elemBC[planeInc+j+edgeElems*edgeElems-edgeElems+1] |= ETA_P_COMM
+                domain.letap[planeInc+j+edgeElems*edgeElems-edgeElems+1] = ghostIdx[4] +  rowInc + j
+            end
+
+            if domain.m_colLoc == 0
+                domain.elemBC[planeInc+j*edgeElems+1] |= XI_M_SYMM
+            else
+                domain.elemBC[planeInc+j*edgeElems+1] |= XI_M_COMM
+                domain.lxim[planeInc+j*edgeElems+1] = ghostIdx[5] + rowInc + j
+            end
+
+            if domain.m_colLoc == domain.m_tp-1
+                domain.elemBC[planeInc+j*edgeElems+edgeElems] |= XI_P_FREE
+            else
+                domain.elemBC[planeInc+j*edgeElems+edgeElems] |= XI_P_COMM
+                domain.lxip[planeInc+j*edgeElems+edgeElems] = ghostIdx[6] + rowInc + j
+            end
+        end
+    end
+end
+
+
 
 function timeIncrement!(domain::Domain)
     targetdt = domain.stoptime - domain.time
@@ -1614,21 +1747,20 @@ function calcVolumeForceForElems(domain::Domain)
 end
 
 function calcForceForNodes(domain::Domain)
-    # #if USE_MPI
-    #   CommRecv(*domain, MSG_COMM_SBN, 3,
-    #            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
-    #            true, false) ;
-    # #endif
+    commRecv(domain, MSG_COMM_SBN, 3,
+             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+             true, false)
+
     domain.fx .= 0.0
     domain.fy .= 0.0
     domain.fz .= 0.0
 
     calcVolumeForceForElems(domain);
-
-    #   moved here from the main loop to allow async execution with GPU work
-    # FIXIT not sure this belongs here now
-    # TimeIncrement(domain);
-
+    fields = (domain.fx, domain.fy, domain.fz)
+    commSend(domain, MSG_COMM_SBN, fields,
+             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+             true, false)
+    commSBN(domain, fields)
 end
 
 function calcAccelerationForNodes(domain::Domain)
@@ -1639,16 +1771,23 @@ end
 
 function applyAccelerationBoundaryConditionsForNodes(domain::Domain)
 
-  numNodeBC = (domain.sizeX+1)*(domain.sizeX+1)
-  for i in 1:numNodeBC
-    domain.xdd[domain.symmX[i]] = 0.0
-  end
-  for i in 1:numNodeBC
-    domain.ydd[domain.symmY[i]] = 0.0
-  end
-  for i in 1:numNodeBC
-    domain.zdd[domain.symmZ[i]] = 0.0
-  end
+    numNodeBC = (domain.sizeX+1)*(domain.sizeX+1)
+
+    if length(domain.symmX) != 0
+        for i in 1:numNodeBC
+            domain.xdd[domain.symmX[i]+1] = 0.0
+        end
+    end
+    if length(domain.symmY) != 0
+        for i in 1:numNodeBC
+            domain.ydd[domain.symmY[i]+1] = 0.0
+        end
+        end
+    if length(domain.symmZ) != 0
+        for i in 1:numNodeBC
+            domain.zdd[domain.symmZ[i]+1] = 0.0
+        end
+    end
 end
 
 function calcVelocityForNodes(domain::Domain, dt, u_cut)
@@ -1677,18 +1816,13 @@ function calcVelocityForNodes(domain::Domain, dt, u_cut)
     end
 end
 
-
 function calcPositionForNodes(domain::Domain, dt)
     domain.x .= domain.x .+ domain.xd .* dt
     domain.y .= domain.y .+ domain.yd .* dt
     domain.z .= domain.z .+ domain.zd .* dt
 end
 
-
 function lagrangeNodal(domain::Domain)
-# #ifdef SEDOV_SYNC_POS_VEL_EARLY
-#    Domain_member fieldData[6] ;
-# #endif
     delt = domain.deltatime
 
     u_cut = domain.u_cut
@@ -1696,13 +1830,11 @@ function lagrangeNodal(domain::Domain)
     # acceleration boundary conditions.
     calcForceForNodes(domain)
 
-# #if USE_MPI
-# #ifdef SEDOV_SYNC_POS_VEL_EARLY
-#    CommRecv(*domain, MSG_SYNC_POS_VEL, 6,
-#             domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
-#             false, false) ;
-# #endif
-# #endif
+    if SEDOV_SYNC_POS_VEL_EARLY
+        commRecv(domain, MSG_SYNC_POS_VEL, 6,
+                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                 false, false)
+    end
 
     calcAccelerationForNodes(domain)
 
@@ -1711,30 +1843,14 @@ function lagrangeNodal(domain::Domain)
     calcVelocityForNodes(domain, delt, u_cut)
     calcPositionForNodes(domain, delt)
 
-# #if USE_MPI
-# #ifdef SEDOV_SYNC_POS_VEL_EARLY
-#   // initialize pointers
-#   domain->d_x = domain->x.raw();
-#   domain->d_y = domain->y.raw();
-#   domain->d_z = domain->z.raw();
+    if SEDOV_SYNC_POS_VEL_EARLY
+        fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+        commSend(domain, MSG_SYNC_POS_VEL, fields,
+                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                 false, false)
+        commSyncPosVel(domain)
+    end
 
-#   domain->d_xd = domain->xd.raw();
-#   domain->d_yd = domain->yd.raw();
-#   domain->d_zd = domain->zd.raw();
-
-#   fieldData[0] = &Domain::get_x ;
-#   fieldData[1] = &Domain::get_y ;
-#   fieldData[2] = &Domain::get_z ;
-#   fieldData[3] = &Domain::get_xd ;
-#   fieldData[4] = &Domain::get_yd ;
-#   fieldData[5] = &Domain::get_zd ;
-
-#   CommSendGpu(*domain, MSG_SYNC_POS_VEL, 6, fieldData,
-#            domain->sizeX + 1, domain->sizeY + 1, domain->sizeZ + 1,
-#            false, false, domain->streams[2]) ;
-#   CommSyncPosVelGpu(*domain, &domain->streams[2]) ;
-# #endif
-# #endif
     return nothing
 end
 
@@ -2242,7 +2358,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
 
         case = bcMask & ETA_M
         if case == 0
-            delvm = domain.delv_eta[domain.letam[i]]
+            delvm = domain.delv_eta[domain.letam[i]+1]
         elseif case == ETA_M_SYMM
             delvm = domain.delv_eta[i]
         elseif case == ETA_M_FREE
@@ -2253,7 +2369,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
 
         case = bcMask & ETA_P
         if case == 0
-            delvp = domain.delv_eta[domain.letap[i]]
+            delvp = domain.delv_eta[domain.letap[i]+1]
         elseif case == ETA_P_SYMM
             delvp = domain.delv_eta[i]
         elseif case == ETA_P_FREE
@@ -2288,7 +2404,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
 
         case = bcMask & ZETA_M
         if case == 0
-            delvm = domain.delv_zeta[domain.lzetam[i]]
+            delvm = domain.delv_zeta[domain.lzetam[i]+1]
         elseif case == ZETA_M_SYMM
             delvm = domain.delv_zeta[i]
         elseif case == ZETA_M_FREE
@@ -2299,7 +2415,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
 
         case = bcMask & ZETA_P
         if case == 0
-            delvp = domain.delv_zeta[domain.lzetap[i]]
+            delvp = domain.delv_zeta[domain.lzetap[i]+1]
         elseif case == ZETA_P_SYMM
             delvp = domain.delv_zeta[i]
         elseif case == ZETA_P_FREE
@@ -2400,13 +2516,22 @@ function calcQForElems(domain::Domain)
     numElem = domain.numElem
 
     # MONOTONIC Q option
-
+    commRecv(domain, MSG_MONOQ, 3,
+             domain.sizeX, domain.sizeY, domain.sizeZ,
+             true, true)
 
     # Calculate velocity gradients
     calcMonotonicQGradientsForElems(domain)
 
     # Transfer veloctiy gradients in the first order elements
     # problem->commElements->Transfer(CommElements::monoQ)
+
+    fields = (domain.delv_xi, domain.delv_eta, domain.delv_zeta)
+    commSend(domain, MSG_MONOQ, fields,
+             domain.sizeX, domain.sizeY, domain.sizeZ,
+             true, true)
+    commMonoQ(domain)
+
     calcMonotonicQForElems(domain)
 
     # Don't allow excessive artificial viscosity
@@ -2420,6 +2545,9 @@ function calcQForElems(domain::Domain)
         end
 
         if idx >= 0
+            if domain.comm !== nothing
+                MPI.Abort(MPI.COMM_WORLD, 1)
+            end
             error("QStopError")
         end
     end
@@ -2912,8 +3040,4 @@ function lagrangeLeapFrog(domain::Domain)
 
    calcTimeConstraintsForElems(domain)
    return nothing
-end
-
-function nodalMass(domain)
-    return i -> domain.nodalMass[i]
 end
