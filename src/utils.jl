@@ -17,7 +17,10 @@ function parse_cmd()
         "num_iters"
             help = "Number of iterations to run"
             arg_type = Int
-            default = 10
+            default = -1
+        "--enzyme"
+            help = "Run Enzyme"
+            action = :store_true
     end
 
     return parse_args(s)

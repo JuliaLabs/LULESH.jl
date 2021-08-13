@@ -57,7 +57,6 @@ function allocateNodalPersistent!(domain, domNodes)
 end
 
 function allocateElemPersistent!(domain, domElems)
-    resize!(domain.matElemlist, domElems)  # material indexset
     resize!(domain.nodelist, 8*domElems)   # elemToNode connectivity
 
     resize!(domain.lxim, domElems)  # elem connectivity through face g
@@ -71,8 +70,6 @@ function allocateElemPersistent!(domain, domElems)
 
     resize!(domain.e, domElems)    # energy g
     resize!(domain.p, domElems)    # pressure g
-
-    resize!(domain.d_e, domElems)  # AD derivative of energy E g
 
     resize!(domain.q, domElems)    # q g
     resize!(domain.ql, domElems)   # linear term for q g
@@ -88,6 +85,9 @@ function allocateElemPersistent!(domain, domElems)
     resize!(domain.ss, domElems)       # "sound speed" g
 
     resize!(domain.elemMass, domElems)   # mass g
+
+    # Like regElemlist
+    resize!(domain.matElemlist, domElems)  # material indexset
     return nothing
 end
 
@@ -99,8 +99,6 @@ function initializeFields!(domain)
     fill!(domain.p,0.0)
     fill!(domain.q,0.0)
     fill!(domain.v,1.0)
-
-    fill!(domain.d_e,0.0)
 
     fill!(domain.xd,0.0)
     fill!(domain.yd,0.0)
@@ -918,14 +916,20 @@ function timeIncrement!(domain::Domain)
         olddt = domain.deltatime
 
         # This will require a reduction in parallel
-        newdt = 1.0e+20
+        gnewdt = 1.0e+20
 
-        if domain.dtcourant < newdt
-            newdt = domain.dtcourant / 2.0
+        if domain.dtcourant < gnewdt
+            gnewdt = domain.dtcourant / 2.0
         end
 
-        if domain.dthydro < newdt
-            newdt = domain.dthydro * 2.0 / 3.0
+        if domain.dthydro < gnewdt
+            gnewdt = domain.dthydro * 2.0 / 3.0
+        end
+        comm = domain.comm
+        if comm !== nothing
+            newdt = MPI.Allreduce(gnewdt, MPI.MIN, comm)
+        else
+            newdt = gnewdt
         end
 
         ratio = newdt / olddt
@@ -2113,7 +2117,6 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         z_local = z_local .- dt2 .* zd_local
 
         B, detJ = calcElemShapeFunctionDerivatives(x_local, y_local, z_local)
-
         D = calcElemVelocityGradient(xd_local, yd_local, zd_local, B, detJ)
 
         # put velocity gradient quantities into their global arrays.
@@ -2309,7 +2312,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         norm = 1.0 / ( domain.delv_xi[i] + ptiny )
 
         case = bcMask & XI_M
-        if case == 0
+        if case == XI_M_COMM || case == 0
             # MAYBE
             delvm = domain.delv_xi[domain.lxim[i]+1]
         elseif case == XI_M_SYMM
@@ -2317,18 +2320,18 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == XI_M_FREE
             delvm = 0.0
         else
-            error("Error")
+            error("Error $case")
         end
 
         case = bcMask & XI_P
-        if case == 0
+        if case == XI_P_COMM || case == 0
             delvp = domain.delv_xi[domain.lxip[i]]
         elseif case == XI_P_SYMM
             delvp = domain.delv_xi[i]
         elseif case == XI_P_FREE
             delvp = 0.0
         else
-            error("Error")
+            error("Error $case")
         end
 
         delvm = delvm * norm
@@ -2357,25 +2360,25 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         norm = 1.0 / ( domain.delv_eta[i] + ptiny )
 
         case = bcMask & ETA_M
-        if case == 0
+        if case == ETA_M_COMM || case == 0
             delvm = domain.delv_eta[domain.letam[i]+1]
         elseif case == ETA_M_SYMM
             delvm = domain.delv_eta[i]
         elseif case == ETA_M_FREE
             delvm = 0.0
         else
-            error("Error")
+            error("Error $case")
         end
 
         case = bcMask & ETA_P
-        if case == 0
+        if case == ETA_P_COMM || case == 0
             delvp = domain.delv_eta[domain.letap[i]+1]
         elseif case == ETA_P_SYMM
             delvp = domain.delv_eta[i]
         elseif case == ETA_P_FREE
             delvp = 0.0
         else
-            error("Error")
+            error("Error $case")
         end
 
         delvm = delvm * norm
@@ -2403,25 +2406,25 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         norm = 1.0 / ( domain.delv_zeta[i] + ptiny )
 
         case = bcMask & ZETA_M
-        if case == 0
+        if case == ZETA_M_COMM || case == 0
             delvm = domain.delv_zeta[domain.lzetam[i]+1]
         elseif case == ZETA_M_SYMM
             delvm = domain.delv_zeta[i]
         elseif case == ZETA_M_FREE
             delvm = 0.0
         else
-            error("Error")
+            error("Error $case")
         end
 
         case = bcMask & ZETA_P
-        if case == 0
+        if case == ZETA_P_COMM || case == 0
             delvp = domain.delv_zeta[domain.lzetap[i]+1]
         elseif case == ZETA_P_SYMM
             delvp = domain.delv_zeta[i]
         elseif case == ZETA_P_FREE
             delvp = 0.0
         else
-            error("Error")
+            error("Error $case")
         end
 
         delvm = delvm * norm
@@ -2897,21 +2900,36 @@ function updateVolumesForElems(domain::Domain)
     end
 end
 
-function lagrangeElements(domain::Domain)
+function allocateStrains!(domain::Domain, numElem)
 
-    delt = domain.deltatime
-    domain.vnew = Vector{Float64}(undef, domain.numElem)
     domain.dxx = Vector{Float64}(undef, domain.numElem)
     domain.dyy = Vector{Float64}(undef, domain.numElem)
     domain.dzz = Vector{Float64}(undef, domain.numElem)
+end
 
+function allocateGradients!(domain::Domain, numElem, allElem)
     domain.delx_xi = Vector{Float64}(undef, domain.numElem)
     domain.delx_eta = Vector{Float64}(undef, domain.numElem)
     domain.delx_zeta = Vector{Float64}(undef, domain.numElem)
 
-    domain.delv_xi = Vector{Float64}(undef, domain.numElem)
-    domain.delv_eta = Vector{Float64}(undef, domain.numElem)
-    domain.delv_zeta = Vector{Float64}(undef, domain.numElem)
+    domain.delv_xi = Vector{Float64}(undef, allElem)
+    domain.delv_eta = Vector{Float64}(undef, allElem)
+    domain.delv_zeta = Vector{Float64}(undef, allElem)
+end
+
+function lagrangeElements(domain::Domain)
+
+    delt = domain.deltatime
+    domain.vnew = Vector{Float64}(undef, domain.numElem)
+
+    allocateStrains!(domain, domain.numElem)
+
+    allElem = domain.numElem +
+        2*domain.sizeX*domain.sizeY + # plane ghosts
+        2*domain.sizeX*domain.sizeZ + # row ghosts
+        2*domain.sizeY*domain.sizeZ # col ghosts
+
+    allocateGradients!(domain, domain.numElem, allElem)
 
     calcLagrangeElements(domain, delt)
 

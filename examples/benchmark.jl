@@ -3,17 +3,16 @@ using MPI
 using Printf
 using Enzyme
 
-Enzyme.API.printperf!(true)
-Enzyme.API.printall!(true)
-Enzyme.API.instname!(true)
-
+# Enzyme.API.printperf!(true)
+# Enzyme.API.printall!(true)
+# Enzyme.API.instname!(true)
+Enzyme.API.looseTypeAnalysis!(true)
 Enzyme.API.inlineall!(true)
 Enzyme.API.maxtypeoffset!(32)
 ccall((:EnzymeSetCLInteger, Enzyme.API.libEnzyme), Cvoid, (Ptr{Cvoid}, Int64), cglobal((:MaxTypeOffset, Enzyme.API.libEnzyme)), 32)
 
-function main(nx, structured, num_iters, mpi, cuda)
-    # TODO: change default nr to 11
-    nr = 1
+function main(nx, structured, num_iters, mpi, cuda, enzyme, output="times.csv")
+    nr = 11
     balance = 1
     cost = 1
     floattype = Float64
@@ -78,17 +77,25 @@ function main(nx, structured, num_iters, mpi, cuda)
 
     # timestep to solution
     start = getWtime(prob.comm)
+    previous = start
     while domain.time < domain.stoptime
         # this has been moved after computation of volume forces to hide launch latencies
         timeIncrement!(domain)
-        # lagrangeLeapFrog(domain)
-        Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+        if enzyme
+            Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+        else
+            lagrangeLeapFrog(domain)
+        end
 
         # checkErrors(domain, its, myRank)
         if getMyRank(prob.comm) == 0
             @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time, domain.deltatime)
+            now = getWtime(prob.comm)
+            elapsed_time = now - previous
+            previous = now
+            @info "Timestep" cycle=domain.cycle elapsed_time
         end
-        if domain.cycle >= num_iters
+        if num_iters != -1 && domain.cycle >= num_iters
             break
         end
     end
@@ -101,6 +108,10 @@ function main(nx, structured, num_iters, mpi, cuda)
     # Use reduced max elapsed time
     elapsed_time = getWtime(prob.comm) - start
     elapsed_timeG = comm_max(elapsed_time, prob.comm)
+
+    if getMyRank(prob.comm) == 0
+        @info "Run completed" problem_size=nx structured enzyme num_iters elapsed_time=elapsed_timeG
+    end
 
     if cuda
         CUDA.Profile.stop()
@@ -122,5 +133,6 @@ if !isinteractive()
     structured = args["s"]
     num_iters = args["num_iters"]
     mpi = args["mpi"]
-    main(nx, structured, num_iters, mpi, false)
+    enzyme = args["enzyme"]
+    main(nx, structured, num_iters, mpi, false, enzyme)
 end
