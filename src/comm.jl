@@ -36,7 +36,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    # assume communication to 6 neighbors by default
    rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
-   resize!(domain.recvRequest, 26)
+   fill!(domain.recvRequest, MPI.Request())
 
    myRank = MPI.Comm_rank(comm)
 
@@ -293,9 +293,6 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          cmsg += 1
       end
    end
-
-   # Should we:
-   #    resize!(domain.recvRequest, pmsg+emsg+cmsg)
 end
 
 function commSend(domain::Domain, msgType, fields,
@@ -320,7 +317,7 @@ function commSend(domain::Domain, msgType, fields,
    # assume communication to 6 neighbors by default
    rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
-   resize!(domain.sendRequest, 26)
+   fill!(domain.sendRequest, MPI.Request())
    myRank = MPI.Comm_rank(comm)
 
    # post sends
@@ -774,8 +771,10 @@ function commSend(domain::Domain, msgType, fields,
       end
    end
 
-   resize!(domain.sendRequest, pmsg+emsg+cmsg)
-   MPI.Waitall!(domain.sendRequest)
+   for i in 1:(pmsg+emsg+cmsg)
+      MPI.Wait!(domain.sendRequest[i])
+   end
+   # MPI.Waitall!(domain.sendRequest)
 end
 
 function commSBN(domain::Domain, fields)
