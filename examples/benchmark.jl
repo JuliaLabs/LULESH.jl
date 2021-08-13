@@ -110,7 +110,7 @@ function main(nx, structured, num_iters, mpi, cuda, enzyme, output="times.csv")
     elapsed_timeG = comm_max(elapsed_time, prob.comm)
 
     if getMyRank(prob.comm) == 0
-        @info "Run completed" problem_size=nx structured enzyme num_iters elapsed_time=elapsed_timeG
+        @info "Run completed" problem_size=nx structured enzyme num_iters elapsed_time=elapsed_timeG ranks=getNumRanks(prob.comm)
     end
 
     if cuda
