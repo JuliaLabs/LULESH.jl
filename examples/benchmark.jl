@@ -11,19 +11,13 @@ using Printf
 # Enzyme.API.maxtypeoffset!(32)
 # ccall((:EnzymeSetCLInteger, Enzyme.API.libEnzyme), Cvoid, (Ptr{Cvoid}, Int64), cglobal((:MaxTypeOffset, Enzyme.API.libEnzyme)), 32)
 
-function main(nx, structured, num_iters, mpi, cuda)
+function main(nx, structured, num_iters, mpi)
     # TODO: change default nr to 11
     nr = 1
     balance = 1
     cost = 1
     floattype = Float64
-
-    if cuda
-        # devicetype = CUDA.CuArray
-        error("CUDA not yet supported")
-    else
-        devicetype = Vector
-    end
+    devicetype = Vector
 
     if mpi
         !MPI.Initialized() && MPI.Init()
@@ -33,12 +27,6 @@ function main(nx, structured, num_iters, mpi, cuda)
     end
 
     prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
-
-    if comm !== nothing && cuda
-        local_comm = MPI.Comm_split_type(comm, MPI.MPI_COMM_TYPE_SHARED, MPI.Comm_rank(comm))
-        @assert MPI.Comm_size(local_comm) <= length(CUDA.devices())
-        CUDA.device!(MPI.Comm_rank(local_comm))
-    end
 
     # Set up the mesh and decompose. Assumes regular cubes for now
     # TODO: modify this constructor to account for new fields
@@ -72,10 +60,6 @@ function main(nx, structured, num_iters, mpi, cuda)
         end
     end
 
-    if cuda
-        CUDA.Profile.start()
-    end
-
     # timestep to solution
     start = getWtime(prob.comm)
     while domain.time < domain.stoptime
@@ -92,18 +76,9 @@ function main(nx, structured, num_iters, mpi, cuda)
         end
     end
 
-    # make sure GPU finished its work
-    if cuda
-        CUDA.synchronize()
-    end
-
     # Use reduced max elapsed time
     elapsed_time = getWtime(prob.comm) - start
     elapsed_timeG = comm_max(elapsed_time, prob.comm)
-
-    if cuda
-        CUDA.Profile.stop()
-    end
 
     #   if (myRank == 0)
     #     VerifyAndWriteFinalOutput(elapsed_timeG, *locDom, its, nx, numRanks, structured);
@@ -121,5 +96,5 @@ if !isinteractive()
     structured = args["s"]
     num_iters = args["num_iters"]
     mpi = args["mpi"]
-    main(nx, structured, num_iters, mpi, false)
+    main(nx, structured, num_iters, mpi)
 end

@@ -102,9 +102,6 @@
     bad_q::IndexT              # flag to indicate Q error g
     bad_vol::IndexT            # flag to indicate volume error g
 
-    # cuda Events to indicate completion of certain kernels
-    # TODO Will check later how this works with KA
-    # cudaEvent_t time_constraint_computed;
     time::FT                # current time g
     deltatime::FT           # variable time increment g
 
