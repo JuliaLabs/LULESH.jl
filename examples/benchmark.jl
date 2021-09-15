@@ -1,6 +1,5 @@
 using LULESH
 using MPI
-using Printf
 # using Enzyme
 
 # Enzyme.API.printperf!(true)
@@ -53,9 +52,9 @@ function main(nx, structured, num_iters, mpi)
 
     if getMyRank(prob.comm) == 0
         if (structured)
-            @printf("Running until t=%f, Problem size=%dx%dx%d\n", domain.stoptime, nx, nx, nx)
+            @info "Running" until=domain.stoptime domain=(nx,nx,nx)
         else
-            @printf("Running until t=%f, Problem size=%d \n", domain.stoptime, domain.numElem)
+            @info "Running" until=domain.stoptime domain=domain.numElem
             @warn "Unstructured setup not supported"
         end
     end
@@ -69,7 +68,7 @@ function main(nx, structured, num_iters, mpi)
 
         # checkErrors(domain, its, myRank)
         if getMyRank(prob.comm) == 0
-            @printf("cycle = %d, time = %e, dt=%e\n", domain.cycle, domain.time, domain.deltatime)
+            @info "Completed" cycle=domain.cycle time=domain.time dt=domain.deltatime
         end
         if domain.cycle >= num_iters
             break
