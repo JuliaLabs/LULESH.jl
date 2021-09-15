@@ -9,7 +9,7 @@ function run_example(name, args; nranks=nothing)
         cmd = `$(Base.julia_cmd()) --startup-file=no $(example) $(args)`
         if nranks !== nothing
             mpiexecjl = joinpath(dirname(pathof(MPI)), "..", "bin", "mpiexecjl")
-            cmd = `$(mpiexecjl) -n $(nranks) --oversubscribe $(cmd)`
+            cmd = `$(mpiexecjl) -n $(nranks) $(cmd)`
         end
         @debug "Testing $example" cmd
         @test success(pipeline(cmd, stderr=stderr))
@@ -20,6 +20,8 @@ end
     @testset "benchmark.jl" begin
         run_example("benchmark.jl", `-s 45`)
         run_example("benchmark.jl", `-s 45`; nranks=1)
-        run_example("benchmark.jl", `-s 45`; nranks=8)
+        if Sys.CPU_THREADS >= 8
+            run_example("benchmark.jl", `-s 45`; nranks=8)
+        end
     end
 end
