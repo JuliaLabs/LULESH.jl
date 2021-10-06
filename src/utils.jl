@@ -117,3 +117,45 @@ end
     y[1], y[2], y[3], y[4], y[5], y[6], y[7], y[8],
     z[1], z[2], z[3], z[4], z[5], z[6], z[7], z[8]
 )
+
+function verifyAndWriteFinalOutput(elapsed_time, domain, nx, numRanks)
+    # GrindTime1 only takes a single domain into account, and is thus a good way to measure
+    # processor speed indepdendent of MPI parallelism.
+    # GrindTime2 takes into account speedups from MPI parallelism.
+    grindTime1 = ((elapsed_time*1e6)/domain.cycle)/(nx*nx*nx)
+    grindTime2 = ((elapsed_time*1e6)/domain.cycle)/(nx*nx*nx*numRanks)
+
+    @printf "Run completed:\n"
+    @printf "   Problem size        =  %d\n" nx
+    @printf "   MPI tasks           =  %d\n" numRanks
+    @printf "   Iteration count     =  %d\n" domain.cycle
+    @printf "   Final Origin Energy =  %.6e\n" domain.e[1]
+
+    MaxAbsDiff = 0.0
+    MaxRelDiff = 0.0
+    TotalAbsDiff = 0.0
+    for j in 1:nx
+        for k in j+1:nx
+            AbsDiff = abs(domain.e[(j-1)*nx+k] - domain.e[(k-1)*nx+j])
+            TotalAbsDiff += AbsDiff
+            if MaxAbsDiff < AbsDiff
+                MaxAbsDiff = AbsDiff
+            end
+            RelDiff = AbsDiff / domain.e[(k-1)*nx+j]
+            if MaxRelDiff < RelDiff
+                MaxRelDiff = RelDiff
+            end
+        end
+    end
+
+    # Quick symmetry check
+    @printf "   Testing Plane 0 of Energy Array on rank 0:\n"
+    @printf "        MaxAbsDiff   = %.6e\n" MaxAbsDiff
+    @printf "        TotalAbsDiff = %.6e\n" TotalAbsDiff
+    @printf "        MaxRelDiff   = %.6e\n" MaxRelDiff
+
+    # Timing information
+    @printf "\nElapsed time         = %.2f (s)\n" elapsed_time
+    @printf "Grind time (us/z/c)  =  %.8f  (per dom)  (%.8f overall)\n" grindTime1 elapsed_time
+    @printf "FOM                  = %.8f (z/s)\n\n" 1000/grindTime2
+end

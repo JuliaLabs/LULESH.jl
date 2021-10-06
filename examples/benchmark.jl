@@ -79,8 +79,9 @@ function main(nx, structured, num_iters, mpi)
     elapsed_time = getWtime(prob.comm) - start
     elapsed_timeG = comm_max(elapsed_time, prob.comm)
 
-    #   if (myRank == 0)
-    #     VerifyAndWriteFinalOutput(elapsed_timeG, *locDom, its, nx, numRanks, structured);
+    if getMyRank(prob.comm) == 0
+        verifyAndWriteFinalOutput(elapsed_timeG, domain, nx, getNumRanks(prob.comm))
+    end
 
     if mpi
         MPI.Finalize()
