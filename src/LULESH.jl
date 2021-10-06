@@ -83,12 +83,12 @@ function initMeshDecomp(comm)
       myDom = remainder*( 1+ (div(dx*dy*dz, numRanks))) +
          (myRank - remainder)*(div(dx*dy*dz, numRanks))
     end
-   col = myDom % dx
-   row = div(myDom, dx) % dy
-   plane = div(myDom, (dx*dy))
-   side = testProcs
+    col = myDom % dx
+    row = div(myDom, dx) % dy
+    plane = div(myDom, (dx*dy))
+    side = testProcs
 
-   return col, row, plane, side
+    return col, row, plane, side
 end
 export InitMeshDecomp
 end # module

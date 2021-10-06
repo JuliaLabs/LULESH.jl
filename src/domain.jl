@@ -133,13 +133,13 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x, y, 
                 z[nidx] = tz
                 nidx+=1
                 # tx += ds ; // may accumulate roundoff...
-                tx = 1.125*(domain.m_colLoc*nx+col+1)/meshEdgeElems
+                tx = 1.125*(domain.m_colLoc*nx+col)/meshEdgeElems
             end
         #// ty += ds ;  // may accumulate roundoff...
-        ty = 1.125*(domain.m_rowLoc*nx+row+1)/meshEdgeElems
+        ty = 1.125*(domain.m_rowLoc*nx+row)/meshEdgeElems
         end
         #// tz += ds ;  // may accumulate roundoff...
-        tz = 1.125*(domain.m_planeLoc*nx+plane+1)/meshEdgeElems
+        tz = 1.125*(domain.m_planeLoc*nx+plane)/meshEdgeElems
     end
 
     copyto!(domain.x, x)
@@ -741,7 +741,7 @@ function Domain(prob::LuleshProblem)
     end
 
     # set initial deltatime base on analytic CFL calculation
-    domain.deltatime = (.5*cbrt(domain.volo[1]))/sqrt(2*einit);
+    domain.deltatime = (.5*cbrt(domain.volo[1]))/sqrt(2.0*einit)
 
     domain.cost = cost
     resize!(domain.regNumList, domain.numElem)  # material indexset
@@ -918,15 +918,17 @@ function timeIncrement!(domain::Domain)
         olddt = domain.deltatime
 
         # This will require a reduction in parallel
-        newdt = 1.0e+20
+        gnewdt = typemax(Float64)
+        newdt = 0.0
 
-        if domain.dtcourant < newdt
-            newdt = domain.dtcourant / 2.0
+        if domain.dtcourant < gnewdt
+            gnewdt = domain.dtcourant / 2.0
         end
 
-        if domain.dthydro < newdt
-            newdt = domain.dthydro * 2.0 / 3.0
+        if domain.dthydro < gnewdt
+            gnewdt = domain.dthydro * 2.0 / 3.0
         end
+        newdt = comm_min(gnewdt, domain.comm)
 
         ratio = newdt / olddt
         if ratio >= 1.0
@@ -944,7 +946,7 @@ function timeIncrement!(domain::Domain)
 
     # try to prevent very small scaling on the next cycle
     if domain.deltatime < targetdt < 4.0 * domain.deltatime / 3.0
-        targetdt = 4.0 * domain.deltatime / 3.0
+        targetdt = 2.0 * domain.deltatime / 3.0
     end
 
     if targetdt < domain.deltatime
@@ -2887,12 +2889,12 @@ function updateVolumesForElems(domain::Domain)
         v_cut = domain.v_cut
 
         for i in 1:numElem
-        tmpV = domain.vnew[i]
+            tmpV = domain.vnew[i]
 
-        if abs(tmpV - 1.0) < v_cut
-            tmpV = 1.0
-        end
-        domain.v[i] = tmpV
+            if abs(tmpV - 1.0) < v_cut
+                tmpV = 1.0
+            end
+            domain.v[i] = tmpV
         end
     end
 end
@@ -2920,7 +2922,7 @@ function lagrangeElements(domain::Domain)
 
     applyMaterialPropertiesForElems(domain)
 
-    # updateVolumesForElems(domain)
+    updateVolumesForElems(domain)
 
 end
 
