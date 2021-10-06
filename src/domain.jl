@@ -944,7 +944,7 @@ function timeIncrement!(domain::Domain)
 
     # try to prevent very small scaling on the next cycle
     if domain.deltatime < targetdt < 4.0 * domain.deltatime / 3.0
-        targetdt = 4.0 * domain.deltatime / 3.0
+        targetdt = 2.0 * domain.deltatime / 3.0
     end
 
     if targetdt < domain.deltatime
@@ -2887,12 +2887,12 @@ function updateVolumesForElems(domain::Domain)
         v_cut = domain.v_cut
 
         for i in 1:numElem
-        tmpV = domain.vnew[i]
-
-        if abs(tmpV - 1.0) < v_cut
-            tmpV = 1.0
-        end
-        domain.v[i] = tmpV
+            tmpV = domain.vnew[i]
+            
+            if abs(tmpV - 1.0) < v_cut
+                tmpV = 1.0
+            end
+            domain.v[i] = tmpV
         end
     end
 end
@@ -2920,7 +2920,7 @@ function lagrangeElements(domain::Domain)
 
     applyMaterialPropertiesForElems(domain)
 
-    # updateVolumesForElems(domain)
+    updateVolumesForElems(domain)
 
 end
 
