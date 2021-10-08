@@ -52,7 +52,7 @@ include("comm.jl")
 include("utils.jl")
 
 export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime,
-       lagrangeLeapFrog, comm_max, timeIncrement!, nodalMass, commRecv, MSG_COMM_SBN
+       lagrangeLeapFrog, comm_max, timeIncrement!, nodalMass, commRecv, MSG_COMM_SBN, verifyAndWriteFinalOutput
 
 function initMeshDecomp(comm)
     # Assume cube processor layout for now
