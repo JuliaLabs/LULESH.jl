@@ -917,7 +917,6 @@ function timeIncrement!(domain::Domain)
     if domain.dtfixed <= 0.0 && domain.cycle != 0
         olddt = domain.deltatime
 
-        # This will require a reduction in parallel
         gnewdt = typemax(Float64)
         newdt = 0.0
 
