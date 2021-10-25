@@ -58,7 +58,7 @@ const workdir =  realpath(joinpath(@__DIR__, "..", "examples"))
 let flux = Flux()
     for i in 0:floor(Int,log2(N))
         n = 2^i
-        jobspec = juliaspec(`benchmark.jl -s 45`, workdir, num_nodes=n)
+        jobspec = juliaspec(`benchmark.jl -s 45 --mpi`, workdir, num_nodes=n)
         sub = FluxRM.submit(flux, jobspec)
         job = FluxRM.Job(sub)
         @info "Launched" jobid = FluxRM.encode(job) n
