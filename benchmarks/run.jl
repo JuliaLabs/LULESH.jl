@@ -19,15 +19,16 @@ function __set_io_path(spec::FluxRM.JobSpec.Jobspec, iotype, name, path)
     io["path"] = path
 end
 
-function juliaspec(args, dir; num_nodes=1, num_tasks_per_node=6, cores_per_task=6)
+function juliaspec(args, dir; num_nodes=1, num_tasks_per_node=8, cores_per_task=1)
     num_tasks = num_nodes*num_tasks_per_node
     cmd = `$(Base.julia_cmd()) $(args)`
     jobspec = FluxRM.JobSpec.from_command(cmd; num_nodes, num_tasks, cores_per_task)
     system = jobspec.attributes.system
     system.cwd = dir
     system.environment = Dict(
-        "JULIA_PROJECT" => dir, 
-        "OPENBLAS_NUM_THREADS" => "8" # HyperThreads
+        "JULIA_PROJECT" => dir,
+        "JULIA_NUM_THREADS" => cores_per_task,
+        "JULIA_EXCLUSIVE" => 1
     )
     __set_io_path(jobspec, "output", "stderr", "flux-{{id}}.err")
     __set_io_path(jobspec, "output", "stdout", "flux-{{id}}.out")
@@ -50,16 +51,16 @@ function nodes()
 end
 
 const N = nodes()
+const workdir =  realpath(joinpath(@__DIR__, "..", "examples"))
+
+@info "Launching Jobs in " workdir
 
 let flux = Flux()
-
     for i in 0:floor(Int,log2(N))
         n = 2^i
-        for psize in (20,)
-            jobspec = juliaspec(`-L setup.jl experiment.jl $psize`, realpath("experiment"), num_nodes=n)
-            sub = FluxRM.submit(flux, jobspec)
-            job = FluxRM.Job(sub)
-            @info "Launched" jobid = FluxRM.encode(job) n psize
-        end
+        jobspec = juliaspec(`benchmark.jl -s 45`, workdir, num_nodes=n)
+        sub = FluxRM.submit(flux, jobspec)
+        job = FluxRM.Job(sub)
+        @info "Launched" jobid = FluxRM.encode(job) n
     end
 end
