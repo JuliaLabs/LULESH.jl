@@ -982,7 +982,8 @@ function sumElemFaceNormal(x0,  y0,  z0,
   return areaX, areaY, areaZ
 end
 
-function calcElemNodeNormals(x, y, z)
+@inline function calcElemNodeNormals(x, y, z)
+    @inbounds @views begin
     pf = zeros(MMatrix{8, 3, Float64})
     pfx = view(pf, :, 1)
     pfy = view(pf, :, 2)
@@ -1055,22 +1056,24 @@ function calcElemNodeNormals(x, y, z)
     pfy[5:8] .+= areaY
     pfz[5:8] .+= areaZ
 
-    return pf
+    return SMatrix(pf)
+    end #@inbounds
 end
 
-function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_elem,  fz_elem, k)
-
-  fx = @view fx_elem[(k-1)*8+1:k*8]
-  fy = @view fy_elem[(k-1)*8+1:k*8]
-  fz = @view fz_elem[(k-1)*8+1:k*8]
-  stress_xx = sig_xx[k]
-  stress_yy = sig_yy[k]
-  stress_zz = sig_zz[k]
+@inline function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_elem,  fz_elem, k)
 
   @inbounds begin
-    fx[:] = -stress_xx .* B[:, 1]
-    fy[:] = -stress_yy .* B[:, 2]
-    fz[:] = -stress_zz .* B[:, 3]
+    stress_xx = sig_xx[k]
+    stress_yy = sig_yy[k]
+    stress_zz = sig_zz[k]
+
+    fx = -stress_xx .* B[:, 1]
+    fy = -stress_yy .* B[:, 2]
+    fz = -stress_zz .* B[:, 3]
+
+    fx_elem[(k-1)*8+1:k*8] = fx
+    fy_elem[(k-1)*8+1:k*8] = fy
+    fz_elem[(k-1)*8+1:k*8] = fz
   end
 end
 
@@ -1085,7 +1088,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
     fz_elem = T(undef, numElem8)
     # FIXIT. This has to be device type
     nodelist = domain.nodelist
-    for k in 1:domain.numElem
+    @inbounds for k in 1:domain.numElem
         x_local = collectNodal(nodelist, domain.x, (k-1)*8)
         y_local = collectNodal(nodelist, domain.y, (k-1)*8)
         z_local = collectNodal(nodelist, domain.z, (k-1)*8)
@@ -1097,13 +1100,13 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
 
     numNode = domain.numNode
 
-    for gnode in 1:numNode
+    @inbounds for gnode in 1:numNode
         count = domain.nodeElemCount[gnode]
         start = domain.nodeElemStart[gnode]
-        fx = 0.0
-        fy = 0.0
-        fz = 0.0
-        for i in 1:count
+        fx = zero(eltype(fx_elem))
+        fy = zero(eltype(fy_elem))
+        fz = zero(eltype(fz_elem))
+        @simd for i in 1:count
             elem = domain.nodeElemCornerList[start+i]
             fx = fx + fx_elem[elem]
             fy = fy + fy_elem[elem]
@@ -1116,6 +1119,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
 end
 
 @inline function collectDomainNodesToElemNodes(domain::Domain, i)
+    @inbounds begin
     nd0i = domain.nodelist[i]
     nd1i = domain.nodelist[i+1]
     nd2i = domain.nodelist[i+2]
@@ -1159,6 +1163,7 @@ end
     )
 
     return elemX, elemY, elemZ
+    end
 end
 
 @inline function voluDer(x0, x1, x2,
@@ -1445,7 +1450,7 @@ end
     return hgfx, hgfy, hgfz
 end
 
-function calcFBHourglassForceForElems(domain, determ,
+@inline function calcFBHourglassForceForElems(domain, determ,
                                         x8n, y8n, z8n,
                                         dvdx, dvdy, dvdz,
                                         hourg             )
@@ -1488,12 +1493,12 @@ function calcFBHourglassForceForElems(domain, determ,
     # compute the hourglass modes
 
 
-    for i2 in 1:numElem
+    @inbounds for i2 in 1:numElem
 
         i3=8*(i2-1)+1
         volinv= 1.0/determ[i2]
 
-        @inbounds for i1 in 1:4
+        for i1 in 1:4
 
             hourmodx =
                 x8n[i3]   * gamma[1,i1] + x8n[i3+1] * gamma[2,i1] +
@@ -1690,7 +1695,7 @@ function calcHourglassControlForElems(domain::Domain, determ, hgcoef)
     z8n = Vector{Float64}(undef, numElem8)
 
     #start loop over elements
-    for i in 1:numElem
+    @inbounds for i in 1:numElem
         x1, y1, z1    = collectDomainNodesToElemNodes(domain, (i-1)*8+1)
         pfx, pfy, pfz = calcElemVolumeDerivative(x1, y1, z1)
 
@@ -1710,7 +1715,7 @@ function calcHourglassControlForElems(domain::Domain, determ, hgcoef)
 
         #  Do a check for negative volumes
         if domain.v[i] <= 0.0
-            error("Volume Error")
+            error("Volume Error: Volume is negative")
         end
     end
 
