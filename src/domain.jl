@@ -982,7 +982,8 @@ function sumElemFaceNormal(x0,  y0,  z0,
   return areaX, areaY, areaZ
 end
 
-function calcElemNodeNormals(x, y, z)
+@inline function calcElemNodeNormals(x, y, z)
+    @inbounds @views begin
     pf = zeros(MMatrix{8, 3, Float64})
     pfx = view(pf, :, 1)
     pfy = view(pf, :, 2)
@@ -1055,7 +1056,8 @@ function calcElemNodeNormals(x, y, z)
     pfy[5:8] .+= areaY
     pfz[5:8] .+= areaZ
 
-    return pf
+    return SMatrix(pf)
+    end #@inbounds
 end
 
 function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_elem,  fz_elem, k)
