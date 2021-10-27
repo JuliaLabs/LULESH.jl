@@ -1060,19 +1060,20 @@ end
     end #@inbounds
 end
 
-function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_elem,  fz_elem, k)
-
-  fx = @view fx_elem[(k-1)*8+1:k*8]
-  fy = @view fy_elem[(k-1)*8+1:k*8]
-  fz = @view fz_elem[(k-1)*8+1:k*8]
-  stress_xx = sig_xx[k]
-  stress_yy = sig_yy[k]
-  stress_zz = sig_zz[k]
+@inline function sumElemStressesToNodeForces(B, sig_xx, sig_yy, sig_zz,  fx_elem,  fy_elem,  fz_elem, k)
 
   @inbounds begin
-    fx[:] = -stress_xx .* B[:, 1]
-    fy[:] = -stress_yy .* B[:, 2]
-    fz[:] = -stress_zz .* B[:, 3]
+    stress_xx = sig_xx[k]
+    stress_yy = sig_yy[k]
+    stress_zz = sig_zz[k]
+
+    fx = -stress_xx .* B[:, 1]
+    fy = -stress_yy .* B[:, 2]
+    fz = -stress_zz .* B[:, 3]
+
+    fx_elem[(k-1)*8+1:k*8] = fx
+    fy_elem[(k-1)*8+1:k*8] = fy
+    fz_elem[(k-1)*8+1:k*8] = fz
   end
 end
 
@@ -1087,7 +1088,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
     fz_elem = T(undef, numElem8)
     # FIXIT. This has to be device type
     nodelist = domain.nodelist
-    for k in 1:domain.numElem
+    @inbounds for k in 1:domain.numElem
         x_local = collectNodal(nodelist, domain.x, (k-1)*8)
         y_local = collectNodal(nodelist, domain.y, (k-1)*8)
         z_local = collectNodal(nodelist, domain.z, (k-1)*8)
@@ -1099,13 +1100,13 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
 
     numNode = domain.numNode
 
-    for gnode in 1:numNode
+    @inbounds for gnode in 1:numNode
         count = domain.nodeElemCount[gnode]
         start = domain.nodeElemStart[gnode]
-        fx = 0.0
-        fy = 0.0
-        fz = 0.0
-        for i in 1:count
+        fx = zero(eltype(fx_elem))
+        fy = zero(eltype(fy_elem))
+        fz = zero(eltype(fz_elem))
+        @simd for i in 1:count
             elem = domain.nodeElemCornerList[start+i]
             fx = fx + fx_elem[elem]
             fy = fy + fy_elem[elem]
@@ -1118,6 +1119,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
 end
 
 @inline function collectDomainNodesToElemNodes(domain::Domain, i)
+    @inbounds begin
     nd0i = domain.nodelist[i]
     nd1i = domain.nodelist[i+1]
     nd2i = domain.nodelist[i+2]
@@ -1161,6 +1163,7 @@ end
     )
 
     return elemX, elemY, elemZ
+    end
 end
 
 @inline function voluDer(x0, x1, x2,
