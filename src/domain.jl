@@ -1450,7 +1450,7 @@ end
     return hgfx, hgfy, hgfz
 end
 
-function calcFBHourglassForceForElems(domain, determ,
+@inline function calcFBHourglassForceForElems(domain, determ,
                                         x8n, y8n, z8n,
                                         dvdx, dvdy, dvdz,
                                         hourg             )
@@ -1493,12 +1493,12 @@ function calcFBHourglassForceForElems(domain, determ,
     # compute the hourglass modes
 
 
-    for i2 in 1:numElem
+    @inbounds for i2 in 1:numElem
 
         i3=8*(i2-1)+1
         volinv= 1.0/determ[i2]
 
-        @inbounds for i1 in 1:4
+        for i1 in 1:4
 
             hourmodx =
                 x8n[i3]   * gamma[1,i1] + x8n[i3+1] * gamma[2,i1] +
@@ -1695,7 +1695,7 @@ function calcHourglassControlForElems(domain::Domain, determ, hgcoef)
     z8n = Vector{Float64}(undef, numElem8)
 
     #start loop over elements
-    for i in 1:numElem
+    @inbounds for i in 1:numElem
         x1, y1, z1    = collectDomainNodesToElemNodes(domain, (i-1)*8+1)
         pfx, pfy, pfz = calcElemVolumeDerivative(x1, y1, z1)
 
@@ -1715,7 +1715,7 @@ function calcHourglassControlForElems(domain::Domain, determ, hgcoef)
 
         #  Do a check for negative volumes
         if domain.v[i] <= 0.0
-            error("Volume Error")
+            error("Volume Error: Volume is negative")
         end
     end
 
