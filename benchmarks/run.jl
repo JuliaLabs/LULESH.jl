@@ -53,6 +53,12 @@ end
 const N = nodes()
 const workdir =  realpath(joinpath(@__DIR__, "..", "examples"))
 
+@info "Instantiate" workdir
+cd(workdir) do
+    run(`$(Base.julia_cmd()) --project=. -e 'import Pkg; Pkg.instantiate()'`)
+    run(`$(Base.julia_cmd()) --project=. -e 'import Pkg; Pkg.build()'`)
+end
+
 @info "Launching Jobs in " workdir
 
 let flux = Flux()
