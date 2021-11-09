@@ -7,5 +7,7 @@ spack:
   specs:
   - flux-sched
   - flux-core
+  - libzmq@4.3.2
+  - hwloc ~rocm ~pci
   concretization: together
   view: true
