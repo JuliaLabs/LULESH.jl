@@ -32,27 +32,27 @@ planeLoc(dom::AbstractDomain) = dom.m_planeLoc
 tp(dom::AbstractDomain) = dom.m_tp
 
 function allocateNodalPersistent!(domain, domNodes)
-    resize!(domain.x, domNodes)   # coordinates
-    resize!(domain.y, domNodes)
-    resize!(domain.z, domNodes)
+    fill!(resize!(domain.x, domNodes),0)   # coordinates
+    fill!(resize!(domain.y, domNodes),0)
+    fill!(resize!(domain.z, domNodes),0)
 
-    resize!(domain.xd, domNodes)  # velocities
-    resize!(domain.yd, domNodes)
-    resize!(domain.zd, domNodes)
+    fill!(resize!(domain.xd, domNodes),0)  # velocities
+    fill!(resize!(domain.yd, domNodes),0)
+    fill!(resize!(domain.zd, domNodes),0)
 
-    resize!(domain.xdd, domNodes) # accelerations
-    resize!(domain.ydd, domNodes) # accelerations
-    resize!(domain.zdd, domNodes) # accelerations
+    fill!(resize!(domain.xdd, domNodes),0) # accelerations
+    fill!(resize!(domain.ydd, domNodes),0) # accelerations
+    fill!(resize!(domain.zdd, domNodes),0) # accelerations
 
-    resize!(domain.fx, domNodes)   # forces
-    resize!(domain.fy, domNodes)
-    resize!(domain.fz, domNodes)
+    fill!(resize!(domain.fx, domNodes),0)   # forces
+    fill!(resize!(domain.fy, domNodes),0)
+    fill!(resize!(domain.fz, domNodes),0)
 
-    resize!(domain.dfx, domNodes)  # AD derivative of the forces
-    resize!(domain.dfy, domNodes)
-    resize!(domain.dfz, domNodes)
+    fill!(resize!(domain.dfx, domNodes),0)  # AD derivative of the forces
+    fill!(resize!(domain.dfy, domNodes),0)
+    fill!(resize!(domain.dfz, domNodes),0)
 
-    resize!(domain.nodalMass, domNodes)  # mass
+    fill!(resize!(domain.nodalMass, domNodes),0)  # mass
     return nothing
 end
 
@@ -150,7 +150,7 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x, y, 
     # embed hexehedral elements in nodal point lattice
     # INDEXING
     zidx::IndexT = 0
-    nidx = 1
+    nidx = 0
     for plane in 1:edgeElems
         for row in 1:edgeElems
             for col in 1:edgeElems
@@ -611,8 +611,8 @@ function Domain(prob::LuleshProblem)
     nodeElemCount = zeros(IndexT, domNodes)
     # INDEXING
     for i in 1:domElems
-        for j in 0:7
-            nodeElemCount[nodelist[j*domElems+i]]+=1
+        for j in 1:8
+            nodeElemCount[nodelist[8*(i-1)+j]+1] += 1
         end
     end
 
@@ -625,10 +625,11 @@ function Domain(prob::LuleshProblem)
 
     nodeElemCount .= 0
 
-    for j in 0:7
-        for i in 1:domElems
-            m = nodelist[domElems*j+i]
-            k = domElems*j + i
+    for i in 1:domElems
+        for j in 1:8
+            # @show i,j
+            m = nodelist[8*(i-1)+j] + 1
+            k = 8*(i-1) + j
             # INDEXING
             offset = nodeElemStart[m] + nodeElemCount[m]
             nodeElemCornerList[offset+1] = k
@@ -705,18 +706,18 @@ function Domain(prob::LuleshProblem)
         x_local = Vector{prob.floattype}(undef, 8)
         y_local = Vector{prob.floattype}(undef, 8)
         z_local = Vector{prob.floattype}(undef, 8)
-        for lnode in 0:7
-            gnode = nodelist[(i-1)*8+lnode+1]
-            x_local[lnode+1] = x[gnode]
-            y_local[lnode+1] = y[gnode]
-            z_local[lnode+1] = z[gnode]
+        for lnode in 1:8
+            gnode = nodelist[(i-1)*8+lnode]+1
+            x_local[lnode] = x[gnode]
+            y_local[lnode] = y[gnode]
+            z_local[lnode] = z[gnode]
         end
         # volume calculations
         volume = calcElemVolume(x_local, y_local, z_local )
         volo[i] = volume
         elemMass[i] = volume
-        for j in 0:7
-            gnode = nodelist[j*domElems+i]
+        for j in 1:8
+            gnode = nodelist[(i-1)*8+j]+1
             nodalMass[gnode] += volume / 8.0
         end
     end
@@ -1130,36 +1131,36 @@ end
     nd7i = domain.nodelist[i+7]
 
     elemX = SVector(
-        domain.x[nd0i],
-        domain.x[nd1i],
-        domain.x[nd2i],
-        domain.x[nd3i],
-        domain.x[nd4i],
-        domain.x[nd5i],
-        domain.x[nd6i],
-        domain.x[nd7i],
+        domain.x[nd0i+1],
+        domain.x[nd1i+1],
+        domain.x[nd2i+1],
+        domain.x[nd3i+1],
+        domain.x[nd4i+1],
+        domain.x[nd5i+1],
+        domain.x[nd6i+1],
+        domain.x[nd7i+1],
     )
 
     elemY = SVector(
-        domain.y[nd0i],
-        domain.y[nd1i],
-        domain.y[nd2i],
-        domain.y[nd3i],
-        domain.y[nd4i],
-        domain.y[nd5i],
-        domain.y[nd6i],
-        domain.y[nd7i],
+        domain.y[nd0i+1],
+        domain.y[nd1i+1],
+        domain.y[nd2i+1],
+        domain.y[nd3i+1],
+        domain.y[nd4i+1],
+        domain.y[nd5i+1],
+        domain.y[nd6i+1],
+        domain.y[nd7i+1],
     )
 
     elemZ = SVector(
-       domain.z[nd0i],
-       domain.z[nd1i],
-       domain.z[nd2i],
-       domain.z[nd3i],
-       domain.z[nd4i],
-       domain.z[nd5i],
-       domain.z[nd6i],
-       domain.z[nd7i],
+       domain.z[nd0i+1],
+       domain.z[nd1i+1],
+       domain.z[nd2i+1],
+       domain.z[nd3i+1],
+       domain.z[nd4i+1],
+       domain.z[nd5i+1],
+       domain.z[nd6i+1],
+       domain.z[nd7i+1],
     )
 
     return elemX, elemY, elemZ
@@ -1561,36 +1562,36 @@ end
         n7si2 = domain.nodelist[(i2-1)*8+8]
 
         xd1 = SVector(
-            domain.xd[n0si2],
-            domain.xd[n1si2],
-            domain.xd[n2si2],
-            domain.xd[n3si2],
-            domain.xd[n4si2],
-            domain.xd[n5si2],
-            domain.xd[n6si2],
-            domain.xd[n7si2],
+            domain.xd[n0si2+1],
+            domain.xd[n1si2+1],
+            domain.xd[n2si2+1],
+            domain.xd[n3si2+1],
+            domain.xd[n4si2+1],
+            domain.xd[n5si2+1],
+            domain.xd[n6si2+1],
+            domain.xd[n7si2+1],
         )
 
         yd1 = SVector(
-            domain.yd[n0si2],
-            domain.yd[n1si2],
-            domain.yd[n2si2],
-            domain.yd[n3si2],
-            domain.yd[n4si2],
-            domain.yd[n5si2],
-            domain.yd[n6si2],
-            domain.yd[n7si2],
+            domain.yd[n0si2+1],
+            domain.yd[n1si2+1],
+            domain.yd[n2si2+1],
+            domain.yd[n3si2+1],
+            domain.yd[n4si2+1],
+            domain.yd[n5si2+1],
+            domain.yd[n6si2+1],
+            domain.yd[n7si2+1],
         )
 
         zd1 = SVector(
-            domain.zd[n0si2],
-            domain.zd[n1si2],
-            domain.zd[n2si2],
-            domain.zd[n3si2],
-            domain.zd[n4si2],
-            domain.zd[n5si2],
-            domain.zd[n6si2],
-            domain.zd[n7si2],
+            domain.zd[n0si2+1],
+            domain.zd[n1si2+1],
+            domain.zd[n2si2+1],
+            domain.zd[n3si2+1],
+            domain.zd[n4si2+1],
+            domain.zd[n5si2+1],
+            domain.zd[n6si2+1],
+            domain.zd[n7si2+1],
         )
 
         coefficient = - hourg * 0.01 * ss1 * mass1 / volume13
@@ -2071,14 +2072,14 @@ end
 
 @inline function collectNodal(nodelist, src, i)
     @inbounds begin
-        s1 = src[nodelist[i+1]]
-        s2 = src[nodelist[i+2]]
-        s3 = src[nodelist[i+3]]
-        s4 = src[nodelist[i+4]]
-        s5 = src[nodelist[i+5]]
-        s6 = src[nodelist[i+6]]
-        s7 = src[nodelist[i+7]]
-        s8 = src[nodelist[i+8]]
+        s1 = src[nodelist[i+1]+1]
+        s2 = src[nodelist[i+2]+1]
+        s3 = src[nodelist[i+3]+1]
+        s4 = src[nodelist[i+4]+1]
+        s5 = src[nodelist[i+5]+1]
+        s6 = src[nodelist[i+6]+1]
+        s7 = src[nodelist[i+7]+1]
+        s8 = src[nodelist[i+8]+1]
     end
 
     return SVector(s1, s2, s3, s4, s5, s6, s7, s8)
@@ -2172,59 +2173,59 @@ function calcMonotonicQGradientsForElems(domain::Domain)
         n6 = domain.nodelist[k+7]
         n7 = domain.nodelist[k+8]
 
-        x0 = domain.x[n0]
-        x1 = domain.x[n1]
-        x2 = domain.x[n2]
-        x3 = domain.x[n3]
-        x4 = domain.x[n4]
-        x5 = domain.x[n5]
-        x6 = domain.x[n6]
-        x7 = domain.x[n7]
+        x0 = domain.x[n0+1]
+        x1 = domain.x[n1+1]
+        x2 = domain.x[n2+1]
+        x3 = domain.x[n3+1]
+        x4 = domain.x[n4+1]
+        x5 = domain.x[n5+1]
+        x6 = domain.x[n6+1]
+        x7 = domain.x[n7+1]
 
-        y0 = domain.y[n0]
-        y1 = domain.y[n1]
-        y2 = domain.y[n2]
-        y3 = domain.y[n3]
-        y4 = domain.y[n4]
-        y5 = domain.y[n5]
-        y6 = domain.y[n6]
-        y7 = domain.y[n7]
+        y0 = domain.y[n0+1]
+        y1 = domain.y[n1+1]
+        y2 = domain.y[n2+1]
+        y3 = domain.y[n3+1]
+        y4 = domain.y[n4+1]
+        y5 = domain.y[n5+1]
+        y6 = domain.y[n6+1]
+        y7 = domain.y[n7+1]
 
-        z0 = domain.z[n0]
-        z1 = domain.z[n1]
-        z2 = domain.z[n2]
-        z3 = domain.z[n3]
-        z4 = domain.z[n4]
-        z5 = domain.z[n5]
-        z6 = domain.z[n6]
-        z7 = domain.z[n7]
+        z0 = domain.z[n0+1]
+        z1 = domain.z[n1+1]
+        z2 = domain.z[n2+1]
+        z3 = domain.z[n3+1]
+        z4 = domain.z[n4+1]
+        z5 = domain.z[n5+1]
+        z6 = domain.z[n6+1]
+        z7 = domain.z[n7+1]
 
-        xv0 = domain.xd[n0]
-        xv1 = domain.xd[n1]
-        xv2 = domain.xd[n2]
-        xv3 = domain.xd[n3]
-        xv4 = domain.xd[n4]
-        xv5 = domain.xd[n5]
-        xv6 = domain.xd[n6]
-        xv7 = domain.xd[n7]
+        xv0 = domain.xd[n0+1]
+        xv1 = domain.xd[n1+1]
+        xv2 = domain.xd[n2+1]
+        xv3 = domain.xd[n3+1]
+        xv4 = domain.xd[n4+1]
+        xv5 = domain.xd[n5+1]
+        xv6 = domain.xd[n6+1]
+        xv7 = domain.xd[n7+1]
 
-        yv0 = domain.yd[n0]
-        yv1 = domain.yd[n1]
-        yv2 = domain.yd[n2]
-        yv3 = domain.yd[n3]
-        yv4 = domain.yd[n4]
-        yv5 = domain.yd[n5]
-        yv6 = domain.yd[n6]
-        yv7 = domain.yd[n7]
+        yv0 = domain.yd[n0+1]
+        yv1 = domain.yd[n1+1]
+        yv2 = domain.yd[n2+1]
+        yv3 = domain.yd[n3+1]
+        yv4 = domain.yd[n4+1]
+        yv5 = domain.yd[n5+1]
+        yv6 = domain.yd[n6+1]
+        yv7 = domain.yd[n7+1]
 
-        zv0 = domain.zd[n0]
-        zv1 = domain.zd[n1]
-        zv2 = domain.zd[n2]
-        zv3 = domain.zd[n3]
-        zv4 = domain.zd[n4]
-        zv5 = domain.zd[n5]
-        zv6 = domain.zd[n6]
-        zv7 = domain.zd[n7]
+        zv0 = domain.zd[n0+1]
+        zv1 = domain.zd[n1+1]
+        zv2 = domain.zd[n2+1]
+        zv3 = domain.zd[n3+1]
+        zv4 = domain.zd[n4+1]
+        zv5 = domain.zd[n5+1]
+        zv6 = domain.zd[n6+1]
+        zv7 = domain.zd[n7+1]
 
         vol = domain.volo[i]*domain.vnew[i]
         norm = 1.0 / ( vol + ptiny )
