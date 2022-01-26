@@ -1,16 +1,16 @@
 using LULESH
 using MPI
-# using Enzyme
+using Enzyme
 
-# Enzyme.API.printperf!(true)
+Enzyme.API.printperf!(true)
 # Enzyme.API.printall!(true)
 # Enzyme.API.instname!(true)
 
-# Enzyme.API.inlineall!(true)
-# Enzyme.API.maxtypeoffset!(32)
-# ccall((:EnzymeSetCLInteger, Enzyme.API.libEnzyme), Cvoid, (Ptr{Cvoid}, Int64), cglobal((:MaxTypeOffset, Enzyme.API.libEnzyme)), 32)
+Enzyme.API.inlineall!(true)
+Enzyme.API.maxtypeoffset!(32)
+Enzyme.API.looseTypeAnalysis!(true)
 
-function main(nx, structured, num_iters, mpi)
+function main(nx, structured, num_iters, mpi, enzyme)
     # TODO: change default nr to 11
     nr = 1
     balance = 1
@@ -64,7 +64,11 @@ function main(nx, structured, num_iters, mpi)
     while domain.time < domain.stoptime
         # this has been moved after computation of volume forces to hide launch latencies
         timeIncrement!(domain)
-        lagrangeLeapFrog(domain)
+        if enzyme
+            Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+        else
+            lagrangeLeapFrog(domain)
+        end
 
         # checkErrors(domain, its, myRank)
         if getMyRank(prob.comm) == 0
@@ -96,5 +100,6 @@ if !isinteractive()
     structured = args["s"]
     num_iters = args["num_iters"]
     mpi = args["mpi"]
-    main(nx, structured, num_iters, mpi)
+    enzyme = args["enzyme"]
+    main(nx, structured, num_iters, mpi, enzyme)
 end
