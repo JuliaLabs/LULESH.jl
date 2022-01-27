@@ -7,7 +7,8 @@ using Enzyme
 # Enzyme.API.instname!(true)
 
 Enzyme.API.inlineall!(true)
-# Enzyme.API.maxtypeoffset!(32)
+# Size of Domain is around 1024
+Enzyme.API.maxtypeoffset!(1024)
 Enzyme.API.strictAliasing!(false)
 Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
