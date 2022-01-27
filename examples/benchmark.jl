@@ -2,12 +2,14 @@ using LULESH
 using MPI
 using Enzyme
 
-Enzyme.API.printperf!(true)
+# Enzyme.API.printperf!(true)
 # Enzyme.API.printall!(true)
 # Enzyme.API.instname!(true)
 
 Enzyme.API.inlineall!(true)
-Enzyme.API.maxtypeoffset!(32)
+# Enzyme.API.maxtypeoffset!(32)
+Enzyme.API.strictAliasing!(false)
+Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
 
 function main(nx, structured, num_iters, mpi, enzyme)
