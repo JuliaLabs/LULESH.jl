@@ -958,9 +958,12 @@ end
 
 function initStressTermsForElems(domain::Domain, sigxx, sigyy, sigzz)
     # Based on FORTRAN implementation down from here
-    sigxx .=  .- domain.p .- domain.q
-    sigyy .=  .- domain.p .- domain.q
-    sigzz .=  .- domain.p .- domain.q
+    @assert axes(sigxx) == axes(sigyy) == axes(sigzz) == axes(domain.p) == axes(domain.q)
+    for i in eachindex(sigxx)
+        sigxx[i] = - domain.p[i] - domain.q[i]
+        sigyy[i] = - domain.p[i] - domain.q[i]
+        sigzz[i] = - domain.p[i] - domain.q[i]
+    end
 end
 
 function sumElemFaceNormal(x0,  y0,  z0,
