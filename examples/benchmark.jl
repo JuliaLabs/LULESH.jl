@@ -70,7 +70,7 @@ function main(nx, structured, num_iters, mpi, enzyme)
         if enzyme
             Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
         else
-            lagrangeLeapFrog(domain)
+           lagrangeLeapFrog(domain)
         end
 
         # checkErrors(domain, its, myRank)
