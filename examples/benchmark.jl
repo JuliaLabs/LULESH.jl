@@ -28,7 +28,7 @@ function main(nx, structured, num_iters, mpi, enzyme)
         comm = nothing
     end
 
-    if getMyRank(prob.comm) == 0
+    if getMyRank(comm) == 0
         @info "Constructing LuleshProblem" num_iters structured nx nr balance cost ranks=getNumRanks(prob.comm)
     end
 
