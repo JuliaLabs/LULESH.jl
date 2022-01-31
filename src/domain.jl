@@ -2579,13 +2579,14 @@ function calcPressureForElems(domain::Domain, p_new, bvc,
     end
 
     for i in 1:length
+        ielem = domain.matElemlist[i]
         p_new[i] = bvc[i] * e_old[i]
 
         if abs(p_new[i]) < p_cut
             p_new[i] = 0.0
         end
-
-        if vnewc[i] >= eosvmax # impossible condition here?
+        #TODO check 1 or 0 index for ielem
+        if vnewc[ielem] >= eosvmax # impossible condition here?
             p_new[i] = 0.0
         end
 
@@ -2647,7 +2648,7 @@ function calcEnergyForElems(domain::Domain, p_new,  e_new,  q_new,
     end
 
     for i in 1:length
-        e_new[i] = e_new[i] + 0.5 * work[i]
+        e_new[i] += 0.5 * work[i]
         if abs(e_new[i]) < e_cut
             e_new[i] = 0.0
         end
@@ -2660,11 +2661,12 @@ function calcEnergyForElems(domain::Domain, p_new,  e_new,  q_new,
                             vnewc, pmin, p_cut, eosvmax, length)
 
     for i in 1:length
+        ielem = domain.matElemlist[i]
         if delvc[i] > 0.0
             q_tilde = 0.0
         else
             ssc = ( pbvc[i] * e_new[i]
-                + vnewc[i] * vnewc[i] * bvc[i] * p_new[i] ) / rho0
+                + vnewc[ielem] * vnewc[ielem] * bvc[i] * p_new[i] ) / rho0
 
             if ssc <= TINY1
                 ssc = TINY3
@@ -2691,10 +2693,11 @@ function calcEnergyForElems(domain::Domain, p_new,  e_new,  q_new,
                             vnewc, pmin, p_cut, eosvmax, length)
 
     for i in 1:length
+        ielem = domain.matElemlist[i]
 
         if delvc[i] <= 0.0
             ssc = (( pbvc[i] * e_new[i]
-                + vnewc[i] * vnewc[i] * bvc[i] * p_new[i] ) / rho0)
+                + vnewc[ielem] * vnewc[ielem] * bvc[i] * p_new[i] ) / rho0)
 
             if ssc <= TINY1
                 ssc = TINY3
@@ -2718,21 +2721,21 @@ function calcSoundSpeedForElems(domain::Domain, vnewc,  rho0, enewc,
     TINY3 = 0.333333e-18
 
     for i in 1:nz
-        iz = domain.matElemlist[i]
-        ssTmp = ((pbvc[i] * enewc[i] + vnewc[i] * vnewc[i] *
+        ielem = domain.matElemlist[i]
+        ssTmp = ((pbvc[i] * enewc[i] + vnewc[ielem] * vnewc[ielem] *
                             bvc[i] * pnewc[i]) / rho0)
         if ssTmp <= TINY1
             ssTmp = TINY3
         else
             ssTmp = sqrt(ssTmp)
         end
-        domain.ss[iz] = ssTmp
+        domain.ss[ielem] = ssTmp
     end
 end
 
 
-function evalEOSForElems(domain::Domain, vnewc, length)
-
+function evalEOSForElems(domain::Domain, vnewc, numElemReg, regElemList, rep)
+    length = numElemReg
     e_cut = domain.e_cut
     p_cut = domain.p_cut
     ss4o3 = domain.ss4o3
@@ -2750,8 +2753,8 @@ function evalEOSForElems(domain::Domain, vnewc, length)
     q_old = Vector{Float64}(undef, length)
     compression = Vector{Float64}(undef, length)
     compHalfStep = Vector{Float64}(undef, length)
-    qq = Vector{Float64}(undef, length)
-    ql = Vector{Float64}(undef, length)
+    qq_old = Vector{Float64}(undef, length)
+    ql_old = Vector{Float64}(undef, length)
     work = Vector{Float64}(undef, length)
     p_new = Vector{Float64}(undef, length)
     e_new = Vector{Float64}(undef, length)
@@ -2759,37 +2762,31 @@ function evalEOSForElems(domain::Domain, vnewc, length)
     bvc = Vector{Float64}(undef, length)
     pbvc = Vector{Float64}(undef, length)
 
+    for j in 1:rep
+
     # compress data, minimal set
     for i in 1:length
-        zidx = domain.matElemlist[i]
-        e_old[i] = domain.e[zidx]
+        ielem = domain.matElemlist[i]
+        e_old[i] = domain.e[ielem]
+        delvc[i] = domain.delv[ielem]
+        p_old[i] = domain.p[ielem]
+        q_old[i] = domain.q[ielem]
+        qq_old[i] = domain.qq[ielem]
+        ql_old[i] = domain.ql[ielem]
     end
 
     for i in 1:length
-        zidx = domain.matElemlist[i]
-        delvc[i] = domain.delv[zidx]
-    end
-
-    for i in 1:length
-        zidx = domain.matElemlist[i]
-        p_old[i] = domain.p[zidx]
-    end
-
-    for i in 1:length
-        zidx = domain.matElemlist[i]
-        q_old[i] = domain.q[zidx]
-    end
-
-    for i in 1:length
-        compression[i] = 1.0 / vnewc[i] - 1.0
-        vchalf = vnewc[i] - delvc[i] * 0.5
+        ielem = domain.matElemlist[i]
+        compression[i] = 1.0 / vnewc[ielem] - 1.0
+        vchalf = vnewc[ielem] - delvc[i] * 0.5
         compHalfStep[i] = (1.0 / vchalf) - 1.0
     end
 
     # Check for v > eosvmax or v < eosvmin
     if eosvmin != 0.0
         for i in 1:length
-            if vnewc[i] <= eosvmin  # impossible due to calling func?
+            ielem = domain.matElemlist[i]
+            if vnewc[ielem] <= eosvmin  # impossible due to calling func?
                 compHalfStep[i] = compression[i]
             end
         end
@@ -2797,7 +2794,8 @@ function evalEOSForElems(domain::Domain, vnewc, length)
 
     if eosvmax != 0.0
         for i in 1:length
-            if vnewc[i] >= eosvmax  # impossible due to calling func?
+            ielem = domain.matElemlist[i]
+            if vnewc[ielem] >= eosvmax  # impossible due to calling func?
                 p_old[i]        = 0.0
                 compression[i]  = 0.0
                 compHalfStep[i] = 0.0
@@ -2805,9 +2803,6 @@ function evalEOSForElems(domain::Domain, vnewc, length)
         end
     end
     for i in 1:length
-        zidx = domain.matElemlist[i]
-        qq[i] = domain.qq[zidx]
-        ql[i] = domain.ql[zidx]
         work[i] = 0.0
     end
 
@@ -2815,24 +2810,16 @@ function evalEOSForElems(domain::Domain, vnewc, length)
                             p_old, e_old,  q_old, compression,
                             compHalfStep, vnewc, work,  delvc, pmin,
                             p_cut, e_cut, q_cut, emin,
-                            qq, ql, rho0, eosvmax, length)
+                            qq_old, ql_old, rho0, eosvmax, length)
 
-
-    for i in 1:length
-        zidx = domain.matElemlist[i]
-        domain.p[zidx] = p_new[i]
     end
 
     for i in 1:length
-        zidx = domain.matElemlist[i]
-        domain.e[zidx] = e_new[i]
+        ielem = domain.matElemlist[i]
+        domain.p[ielem] = p_new[i]
+        domain.e[ielem] = e_new[i]
+        domain.q[ielem] = q_new[i]
     end
-
-    for i in 1:length
-        zidx = domain.matElemlist[i]
-        domain.q[zidx] = q_new[i]
-    end
-
 
     calcSoundSpeedForElems(domain, vnewc, rho0, e_new, p_new,
                                 pbvc, bvc, ss4o3, length)
@@ -2871,8 +2858,7 @@ function applyMaterialPropertiesForElems(domain::Domain)
         end
 
         for i in 1:length
-            zn = domain.matElemlist[i]
-            vc = domain.v[zn]
+            vc = domain.v[i]
             if eosvmin != 0.0
                 if vc < eosvmin
                     vc = eosvmin
@@ -2887,7 +2873,21 @@ function applyMaterialPropertiesForElems(domain::Domain)
                 error("Volume Error")
             end
         end
-        evalEOSForElems(domain::Domain, vnewc, length)
+        
+        #TODO
+        for r in 1:domain.numReg
+            numElemReg = domain.regElemSize(r)
+            regElemList = domain.regElemlist(r)
+            Int rep
+            if r < domain.numReg/2
+                rep = 1
+            elif r < (domain.numReg - (domain.numReg+15)/20)
+                rep = 1 + domain.cost
+            else
+                rep = 10 * (1 + domain.cost)
+            # zn = domain.matElemlist[i]
+            evalEOSForElems(domain::Domain, vnewc, numElemReg, regElemList, rep) #length)
+        end
     end
 end
 
