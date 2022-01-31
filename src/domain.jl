@@ -2105,6 +2105,9 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         volume = calcElemVolume(x_local, y_local, z_local)
         relativeVolume = volume / domain.volo[k]
         domain.vnew[k] = relativeVolume
+        if domain.vnew[k] <= 0.0
+            error("Volume Error :2108 k="*str(k)*" volume="*str(volume)*" volo="*str(domain.volo[k]))
+        end
         domain.delv[k] = relativeVolume - domain.v[k]
 
         # set characteristic length
@@ -2904,6 +2907,9 @@ function updateVolumesForElems(domain::Domain)
                 tmpV = 1.0
             end
             domain.v[i] = tmpV
+            if tmpV <= 0.0
+                error("Volume Error :2908 i="*str(i))
+            end
         end
     end
 end
