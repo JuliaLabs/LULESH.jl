@@ -14,5 +14,7 @@ dir = joinpath(dirname(dirname(Enzyme_path)), "deps")
 run(`$(Base.julia_cmd()) --project=$(dir) -e 'import Pkg; Pkg.instantiate()'`)
 run(`$(Base.julia_cmd()) --project=$(dir) $(dir)/build_local.jl`)
 
+cp(joinpath(dirname(dir), "LocalPreferences.toml"), "LocalPreferences.toml", force=true)
+
 import MPI
 MPI.install_mpiexecjl(;destdir=".", force=true)
