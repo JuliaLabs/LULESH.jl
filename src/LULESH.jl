@@ -6,6 +6,7 @@ using Parameters
 using Printf
 using Random
 using StaticArrays
+using LinearAlgebra
 
 abstract type AbstractDomain end
 # Device vector types
@@ -53,6 +54,7 @@ include("utils.jl")
 
 export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime,
        lagrangeLeapFrog, comm_max, timeIncrement!, nodalMass, commRecv, MSG_COMM_SBN, verifyAndWriteFinalOutput
+export commSend, commRecv, commSBN
 
 function initMeshDecomp(comm)
     # Assume cube processor layout for now
@@ -91,4 +93,25 @@ function initMeshDecomp(comm)
     return col, row, plane, side
 end
 export InitMeshDecomp
+
+function printNormFields(domain, fields)
+    if getMyRank(domain.comm) == 0
+        for field in fields
+            println("$field[", length(getfield(domain, field)), "]: ", norm(getfield(domain, field)))
+        end
+    end
+end
+
+function printField(domain, field)
+    if getMyRank(domain.comm) == 0
+        println("$field[", length(getfield(domain, field)), "]: ", getfield(domain, field))
+    end
+end
+
+function printNormAllFields(domain)
+    fields = [:x, :xd, :fx, :nodalMass, :symmX, :dxx, :delv_xi]
+    printNormFields(domain, fields)
+end
+
+export print_fields, printNormFields, printNormAllFields
 end # module
