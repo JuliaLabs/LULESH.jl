@@ -2154,7 +2154,7 @@ function calcLagrangeElements(domain, delt)
 
             # See if any volumes are negative, and take appropriate action.
             if domain.vnew[k] <= 0.0
-                error("Volume Error")
+                error("Volume Error :2157 k="*str(k))
             end
         end
     end
@@ -2884,7 +2884,7 @@ function applyMaterialPropertiesForElems(domain::Domain)
                 end
             end
             if vc <= 0.0
-                error("Volume Error")
+                error("Volume Error :2887 i="*str(i))
             end
         end
         evalEOSForElems(domain::Domain, vnewc, length)
