@@ -39,7 +39,11 @@ function main(nx, structured, num_iters, mpi, enzyme)
     # TODO: setup communication buffers
 
     domain = Domain(prob)
-    shadowDomain = Domain(prob)
+    if enzyme
+        shadowDomain = Domain(prob)
+        @time Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+        domain = Domain(prob)
+    end
 
     # getnodalMass = nodalMass(domain)
 
@@ -74,7 +78,7 @@ function main(nx, structured, num_iters, mpi, enzyme)
         if enzyme
             Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
         else
-           lagrangeLeapFrog(domain)
+            lagrangeLeapFrog(domain)
         end
 
         # checkErrors(domain, its, myRank)
