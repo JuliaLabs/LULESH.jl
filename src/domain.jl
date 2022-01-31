@@ -1097,7 +1097,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
         _, detJ = calcElemShapeFunctionDerivatives(x_local, y_local, z_local)
         determ[k] = detJ
         if determ[k] <= 0.0
-            error("Early Volume Error")
+            error("Early Volume Error, "*str(k)*", val="*str(determ[k]))
         end
         B = calcElemNodeNormals(x_local, y_local, z_local)
         sumElemStressesToNodeForces(B, sigxx, sigyy, sigzz, fx_elem, fy_elem, fz_elem, k)
@@ -1751,7 +1751,7 @@ function calcVolumeForceForElems(domain::Domain)
     # check for negative element volume and abort if found
     for i in 1:numElem
         if determ[i] <= 0.0
-            error("Volume Error")
+            error("Mid Volume Error, "*str(i)*", val="*str(determ[i]))
         end
     end
     calcHourglassControlForElems(domain, determ, hgcoef)
