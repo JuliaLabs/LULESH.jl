@@ -2106,7 +2106,7 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         relativeVolume = volume / domain.volo[k]
         domain.vnew[k] = relativeVolume
         if domain.vnew[k] <= 0.0
-            error("Volume Error :2108 k="*string(k)*" volume="*string(volume)*" volo="*string(domain.volo[k]))
+            error("Volume Error :2108 k="*string(k)*" volume="*string(volume)*" volo="*string(domain.volo[k])*" xyz="*string((x_local, y_local, z_local)))
         end
         domain.delv[k] = relativeVolume - domain.v[k]
 
