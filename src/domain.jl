@@ -959,10 +959,8 @@ end
 function initStressTermsForElems(domain::Domain, sigxx, sigyy, sigzz)
     # Based on FORTRAN implementation down from here
     @assert axes(sigxx) == axes(sigyy) == axes(sigzz) == axes(domain.p) == axes(domain.q)
-    for i in eachindex(sigxx)
-        sigxx[i] = - domain.p[i] - domain.q[i]
-        sigyy[i] = - domain.p[i] - domain.q[i]
-        sigzz[i] = - domain.p[i] - domain.q[i]
+    for i in 1:domain.numElem
+        sigxx[i] = sigyy[i] = sigzz[i] = - domain.p[i] - domain.q[i]
     end
 end
 
@@ -2627,7 +2625,7 @@ function calcEnergyForElems(domain::Domain, p_new,  e_new,  q_new,
     calcPressureForElems(domain, pHalfStep, bvc, pbvc, e_new, compHalfStep,
                             vnewc, pmin, p_cut, eosvmax, length)
     for i in 1:length
-        vhalf = 1.0 / 1.0 + compHalfStep[i]
+        vhalf = 1.0 / (1.0 + compHalfStep[i])
 
         if  delvc[i] > 0.0
         #      q_new(i) /* = qq(i) = ql(i) */ = Real_t(0.) ;
