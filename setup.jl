@@ -2,8 +2,12 @@
 import Pkg
 Pkg.activate(".")
 
-import Enzyme
-dir = joinpath(dirname(dirname(pathof(Enzyme))), "deps")
+
+Enzyme_path = Base.find_package("Enzyme")
+if Enzyme_path === nothing
+    error("First instantiate Project")
+end
+dir = joinpath(dirname(dirname(Enzyme_path)), "deps")
 
 @info "Building Enzyme from master"
 
