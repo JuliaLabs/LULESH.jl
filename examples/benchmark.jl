@@ -9,8 +9,7 @@ using Enzyme
 Enzyme.API.inlineall!(true)
 # Size of Domain is around 1024
 Enzyme.API.maxtypeoffset!(32)
-Enzyme.API.strictAliasing!(true)
-# isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(false)
+isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
 
