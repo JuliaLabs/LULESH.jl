@@ -48,13 +48,15 @@ function main(nx, structured, num_iters, mpi, enzyme)
     # getnodalMass = nodalMass(domain)
 
     # Initial domain boundary communication
-    # commRecv(domain, MSG_COMM_SBN, 1,
-    #             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-    #             true, false, prob.comm)
-    #    CommSend<&Domain::nodalMass>(*domain, MSG_COMM_SBN,
-    #             domain->sizeX() + 1, domain->sizeY() + 1, domain->sizeZ() +  1,
-    #             true, false)
-    #    CommSBN<&Domain::nodalMass>(*domain)
+    commRecv(domain, MSG_COMM_SBN, 1,
+                domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                true, false)
+    fields = (domain.nodalMass,)
+    printNormAllFields(domain)
+    commSend(domain, MSG_COMM_SBN, fields,
+             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+             true, false)
+    commSBN(domain, fields)
 
     # End initialization
     if mpi
