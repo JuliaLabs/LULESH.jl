@@ -19,16 +19,17 @@ else
     args = ``
 end
 
+MPI.install_mpiexecjl(; destdir = ".", force=true)
+
 function run_example(name, args; nranks=nothing)
     example = joinpath(@__DIR__, "..", "examples", name)
 
     @testset "$(basename(example)) $args $nranks" begin
         cmd = `$(Base.julia_cmd()) --startup-file=no $(example) $(args)`
         if nranks !== nothing
-            mpiexecjl = joinpath(dirname(pathof(MPI)), "..", "bin", "mpiexecjl")
-            cmd = `$(mpiexecjl) -n $(nranks) $(cmd)`
+            cmd = `./mpiexecjl --project=$(test_project) -n $(nranks) $(cmd)`
         end
-        @debug "Testing $example" cmd
+        @debug "Testing $example $nranks" cmd
         @test success(pipeline(cmd, stderr=stderr))
     end
 end
@@ -36,7 +37,7 @@ end
 @testset "examples" begin
     @testset "benchmark.jl" begin
         run_example("benchmark.jl", `-s 45 $(args)`)
-        run_example("benchmark.jl", `-s 45 $(args)`; nranks=1)
-        run_example("benchmark.jl", `-s 45 $(args)`; nranks=8)
+        run_example("benchmark.jl", `-s 45 --mpi $(args)`; nranks=1)
+        run_example("benchmark.jl", `-s 45 --mpi $(args)`; nranks=8)
     end
 end
