@@ -1098,6 +1098,9 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
         z_local = collectNodal(nodelist, domain.z, (k-1)*8)
         _, detJ = calcElemShapeFunctionDerivatives(x_local, y_local, z_local)
         determ[k] = detJ
+        if determ[k] <= 0.0
+            error("Early Volume Error")
+        end
         B = calcElemNodeNormals(x_local, y_local, z_local)
         sumElemStressesToNodeForces(B, sigxx, sigyy, sigzz, fx_elem, fy_elem, fz_elem, k)
     end
