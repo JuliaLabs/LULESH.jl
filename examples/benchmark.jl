@@ -28,6 +28,10 @@ function main(nx, structured, num_iters, mpi, enzyme)
         comm = nothing
     end
 
+    if getMyRank(comm) == 0
+        @info "Constructing LuleshProblem" num_iters structured nx nr balance cost ranks=getNumRanks(comm)
+    end
+
     prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
 
     # Set up the mesh and decompose. Assumes regular cubes for now

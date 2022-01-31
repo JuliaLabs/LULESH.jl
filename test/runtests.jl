@@ -20,8 +20,6 @@ end
     @testset "benchmark.jl" begin
         run_example("benchmark.jl", `-s 45`)
         run_example("benchmark.jl", `-s 45`; nranks=1)
-        if Sys.CPU_THREADS >= 8
-            run_example("benchmark.jl", `-s 45`; nranks=8)
-        end
+        run_example("benchmark.jl", `-s 45`; nranks=8)
     end
 end
