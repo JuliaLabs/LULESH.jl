@@ -1,9 +1,12 @@
 function setupCommBuffers!(domain::Domain, edgeNodes::Int)
+    function cache_align_real(n)
+        (n + CACHE_COHERENCE_PAD_REAL -1) & ~(CACHE_COHERENCE_PAD_REAL - 1)
+    end
     @unpack_Domain domain
     # allocate a buffer large enough for nodal ghost data
     maxEdgeSize = max(domain.sizeX, max(domain.sizeY, domain.sizeZ))+1
-    m_maxPlaneSize = maxEdgeSize*maxEdgeSize
-    m_maxEdgeSize = maxEdgeSize
+    m_maxPlaneSize = cache_align_real(maxEdgeSize*maxEdgeSize)
+    m_maxEdgeSize = cache_align_real(maxEdgeSize)
 
     # assume communication to 6 neighbors by default
     m_rowMin = (m_rowLoc == 0)        ? 0 : 1
@@ -37,7 +40,7 @@ function setupCommBuffers!(domain::Domain, edgeNodes::Int)
             (m_rowMax & m_colMin & m_planeMin) +
             (m_rowMax & m_colMin & m_planeMax) +
             (m_rowMax & m_colMax & m_planeMin) +
-            (m_rowMax & m_colMax & m_planeMax))
+            (m_rowMax & m_colMax & m_planeMax)) * CACHE_COHERENCE_PAD_REAL
             )
 
     commDataSend = Vector{Float64}(undef, comBufSize)

@@ -14,9 +14,6 @@ end
 
 copyto_zero!(dest, doffs, src, soffs, nelems) = copyto!(dest, doffs+1, src, soffs+1, nelems)
 
-# Assume 128 byte coherence
-# Assume Float64 is an "integral power of 2" bytes wide
-const CACHE_COHERENCE_PAD_REAL = div(128, sizeof(Float64))
 
 function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, planeOnly)
    comm = domain.comm
