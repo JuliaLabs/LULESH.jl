@@ -146,7 +146,6 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x, y, 
     copyto!(domain.x, x)
     copyto!(domain.y, y)
     copyto!(domain.z, z)
-    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     resize!(nodelist, domElems*8);
 
     # embed hexehedral elements in nodal point lattice
@@ -1860,16 +1859,15 @@ function lagrangeNodal(domain::Domain)
     calcVelocityForNodes(domain, delt, u_cut)
     calcPositionForNodes(domain, delt)
 
-    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     if SEDOV_SYNC_POS_VEL_EARLY
         fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
         commSend(domain, MSG_SYNC_POS_VEL, fields,
                  domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
                  false, false)
-        printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
+        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
         commSyncPosVel(domain)
+        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     end
-    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
 
     return nothing
 end
@@ -2103,7 +2101,7 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
     nodelist = domain.nodelist
     # loop over all elements
     MPI.Barrier(domain.comm)
-    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
+    # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     for k in 1:numElem
         MPI.Barrier(domain.comm)
         # get nodal coordinates from global arrays and copy into local arrays

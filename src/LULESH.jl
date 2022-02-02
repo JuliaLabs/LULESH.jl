@@ -100,7 +100,7 @@ export InitMeshDecomp
 function printNormField(domain, fields)
     if getMyRank(domain.comm) == 0
         for field in fields
-            # println("$field[", length(getfield(domain, field)), "]: ", norm(getfield(domain, field)))
+            println("$field[", length(getfield(domain, field)), "]: ", norm(getfield(domain, field)))
         end
     end
 end
@@ -108,30 +108,29 @@ end
 function printField(domain, fields)
     if getMyRank(domain.comm) == 0
         for field in fields
-            # println("$field[", length(getfield(domain, field)), "]: ", getfield(domain, field))
+            println("$field[", length(getfield(domain, field)), "]: ", getfield(domain, field))
         end
     end
 end
 
 function printNormAllFields(domain, location="")
     if getMyRank(domain.comm) == 0
-        # println("Location: ", location)
+        println("Location: ", location)
     end
     # fields = [:x, :xd, :fx, :nodalMass, :symmX, :dxx, :delv_xi]
-    fields = [:x, :symmX, :dxx, :delv_xi]
+    fields = [:x, :commDataSend, :commDataRecv]
     printNormField(domain, fields)
 end
 
 
 function printAllFields(domain, location="")
     if getMyRank(domain.comm) == 0
-        # println("m_colLoc: ", domain.m_colLoc)
-        # println("Location: ", location)
+        println("Location: ", location)
     end
     # fields = [:x, :xd, :fx, :nodalMass, :symmX, :nodelist]
-    fields = [:x, :y, :z]
+    fields = [:commDataSend, :commDataRecv]
     printField(domain, fields)
 end
 
-export print_fields, printNormFields, printAllFields, printNormAllFields
+export printField, printNormField, printAllFields, printNormAllFields
 end # module
