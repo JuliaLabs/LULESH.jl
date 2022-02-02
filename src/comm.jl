@@ -22,7 +22,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    end
    comm = comm::MPI.Comm
 
-   # post recieve buffers for all incoming messages
+   # post receive buffers for all incoming messages
    maxPlaneComm = xferFields * domain.maxPlaneSize
    maxEdgeComm  = xferFields * domain.maxEdgeSize
    pmsg = 0 # plane comm msg
@@ -1320,9 +1320,7 @@ function commSyncPosVel(domain::Domain)
          for field in fields
             for i in 0:(dz-1)
                destOffset = dx*(dy - 1) + i*dx*dy
-               for j in 0:(dx-1)
-                  field[destOffset + j + 1] = domain.commDataRecv[offset + i*dx + j + 1]
-               end
+               copyto_zero!(field, destOffset, domain.commDataRecv, offset + i*dx, dx)
             end
             offset += opCount
          end
@@ -1351,11 +1349,10 @@ function commSyncPosVel(domain::Domain)
          # contiguous memory
          MPI.Wait!(domain.recvRequest[pmsg+1])
          offset = pmsg * maxPlaneComm
-         destOffset = dx-1
          for field in fields
             for i in 0:(dz-1)
                for j in 0:(dy-1)
-                  field[destOffset + i*dx*dy + j*dx + 1] = domain.commDataRecv[offset + i*dy + j + 1]
+                  field[dx -1 + i*dx*dy + j*dx + 1] = domain.commDataRecv[offset + i*dy + j + 1]
                end
             end
             offset += opCount
