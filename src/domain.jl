@@ -59,6 +59,7 @@ end
 function allocateElemPersistent!(domain, domElems)
     resize!(domain.matElemlist, domElems)  # material indexset
     resize!(domain.nodelist, 8*domElems)   # elemToNode connectivity
+    fill!(domain.nodelist, 0)
 
     resize!(domain.lxim, domElems)  # elem connectivity through face g
     resize!(domain.lxip, domElems)
@@ -145,6 +146,7 @@ function buildMesh!(domain, nx, edgeNodes, edgeElems, domNodes, domElems, x, y, 
     copyto!(domain.x, x)
     copyto!(domain.y, y)
     copyto!(domain.z, z)
+    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     resize!(nodelist, domElems*8);
 
     # embed hexehedral elements in nodal point lattice
@@ -185,31 +187,31 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
     # set up elemement connectivity information
     lxim[1] = 0 ;
     for i in 2:domElems
-       lxim[i]   = i-1
-       lxip[i-1] = i
+       lxim[i]   = i-2
+       lxip[i-1] = i-1
     end
     # MAYBE
     lxip[domElems] = domElems-1
 
     # INDEXING
     for i in 1:edgeElems
-       letam[i] = i
-       letap[domElems-edgeElems+i] = domElems-edgeElems+i
+       letam[i] = i-1
+       letap[domElems-edgeElems+i] = domElems-edgeElems+i-1
     end
 
-    for i in edgeElems:domElems
-       letam[i] = i-edgeElems
-       letap[i-edgeElems+1] = i
+    for i in (edgeElems+1):domElems
+       letam[i] = i-edgeElems-1
+       letap[i-edgeElems] = i-1
     end
 
     for i in 1:edgeElems*edgeElems
-       lzetam[i] = i
-       lzetap[domElems-edgeElems*edgeElems+i] = domElems-edgeElems*edgeElems+i
+       lzetam[i] = i-1
+       lzetap[domElems-edgeElems*edgeElems+i] = domElems-edgeElems*edgeElems+i-1
     end
 
-    for i in edgeElems*edgeElems:domElems
-       lzetam[i] = i - edgeElems*edgeElems
-       lzetap[i-edgeElems*edgeElems+1] = i
+    for i in (edgeElems*edgeElems+1):domElems
+       lzetam[i] = i - edgeElems*edgeElems-1
+       lzetap[i-edgeElems*edgeElems] = i-1
     end
 
 
@@ -264,10 +266,10 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
             end
 
             if domain.m_planeLoc == domain.m_tp-1
-                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
+                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems+1] |= ZETA_P_FREE
             else
-                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
-                lzetap[rowInc+(j-1)+domElems-edgeElems*edgeElems] = ghostIdx[2] + rowInc + (j-1)
+                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems+1] |= ZETA_P_COMM
+                lzetap[rowInc+(j-1)+domElems-edgeElems*edgeElems+1] = ghostIdx[2] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == 0
@@ -278,10 +280,10 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
             end
 
             if domain.m_rowLoc == domain.m_tp-1
-                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
+                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems+1] |= ETA_P_FREE
             else
-                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
-                letap[planeInc+(j-1)+edgeElems*edgeElems-edgeElems] = ghostIdx[4] +  rowInc + (j-1)
+                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems+1] |= ETA_P_COMM
+                letap[planeInc+(j-1)+edgeElems*edgeElems-edgeElems+1] = ghostIdx[4] +  rowInc + (j-1)
             end
 
             if domain.m_colLoc == 0
@@ -293,10 +295,10 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
 
             if domain.m_colLoc == domain.m_tp-1
                 # FIXIT this goes out of bounds due to INDEXING
-                # elemBC[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_FREE
+                elemBC[planeInc+(j-1)*edgeElems+edgeElems] |= XI_P_FREE
             else
-                elemBC[planeInc+(j-1)*edgeElems+edgeElems-1] |= XI_P_COMM
-                lxip[planeInc+(j-1)*edgeElems+edgeElems-1] = ghostIdx[6] + rowInc + (j-1)
+                elemBC[planeInc+(j-1)*edgeElems+edgeElems] |= XI_P_COMM
+                lxip[planeInc+(j-1)*edgeElems+edgeElems] = ghostIdx[6] + rowInc + (j-1)
             end
         end
     end
@@ -575,6 +577,10 @@ function Domain(prob::LuleshProblem)
         symmY = convert(Vector, domain.symmY)
         symmZ = convert(Vector, domain.symmZ)
 
+        fill!(symmX, 0)
+        fill!(symmY, 0)
+        fill!(symmZ, 0)
+
         nidx = 1
         # INDEXING
         for i in 1:edgeNodes
@@ -582,13 +588,13 @@ function Domain(prob::LuleshProblem)
             rowInc   = (i-1)*edgeNodes
             for j in 1:edgeNodes
                 if domain.m_planeLoc == 0
-                    symmZ[nidx] = rowInc   + j
+                    symmZ[nidx] = rowInc   + j-1
                 end
                 if domain.m_rowLoc == 0
-                    symmY[nidx] = planeInc + j
+                    symmY[nidx] = planeInc + j-1
                 end
                 if domain.m_colLoc == 0
-                    symmX[nidx] = planeInc + j*edgeNodes
+                    symmX[nidx] = planeInc + (j-1)*edgeNodes
                 end
                 nidx+=1
             end
@@ -1854,13 +1860,16 @@ function lagrangeNodal(domain::Domain)
     calcVelocityForNodes(domain, delt, u_cut)
     calcPositionForNodes(domain, delt)
 
+    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     if SEDOV_SYNC_POS_VEL_EARLY
         fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
         commSend(domain, MSG_SYNC_POS_VEL, fields,
                  domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
                  false, false)
+        printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
         commSyncPosVel(domain)
     end
+    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
 
     return nothing
 end
@@ -2093,7 +2102,10 @@ end
 function calcKinematicsForElems(domain::Domain, numElem, dt)
     nodelist = domain.nodelist
     # loop over all elements
+    MPI.Barrier(domain.comm)
+    printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     for k in 1:numElem
+        MPI.Barrier(domain.comm)
         # get nodal coordinates from global arrays and copy into local arrays
         @inbounds begin
             x_local = collectNodal(nodelist, domain.x, (k-1)*8)
@@ -2106,6 +2118,7 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         relativeVolume = volume / domain.volo[k]
         domain.vnew[k] = relativeVolume
         if domain.vnew[k] <= 0.0
+            println("Rank: ", getMyRank(domain.comm))
             error("Volume Error :2108 k="*string(k)*" volume="*string(volume)*" volo="*string(domain.volo[k])*" xyz="*string((x_local, y_local, z_local)))
         end
         domain.delv[k] = relativeVolume - domain.v[k]

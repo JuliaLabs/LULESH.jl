@@ -52,7 +52,6 @@ function main(nx, structured, num_iters, mpi, enzyme)
                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
                 true, false)
     fields = (domain.nodalMass,)
-    printNormAllFields(domain)
     commSend(domain, MSG_COMM_SBN, fields,
              domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
              true, false)

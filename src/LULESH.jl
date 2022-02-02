@@ -20,6 +20,9 @@ const MSG_COMM_SBN      = 1024
 const MSG_SYNC_POS_VEL  = 2048
 const MSG_MONOQ         = 3072
 const MAX_FIELDS_PER_MPI_COMM = 6
+# Assume 128 byte coherence
+# Assume Float64 is an "integral power of 2" bytes wide
+const CACHE_COHERENCE_PAD_REAL = div(128, sizeof(Float64))
 
 # Only supported configuration
 const SEDOV_SYNC_POS_VEL_EARLY = true
@@ -94,24 +97,41 @@ function initMeshDecomp(comm)
 end
 export InitMeshDecomp
 
-function printNormFields(domain, fields)
+function printNormField(domain, fields)
     if getMyRank(domain.comm) == 0
         for field in fields
-            println("$field[", length(getfield(domain, field)), "]: ", norm(getfield(domain, field)))
+            # println("$field[", length(getfield(domain, field)), "]: ", norm(getfield(domain, field)))
         end
     end
 end
 
-function printField(domain, field)
+function printField(domain, fields)
     if getMyRank(domain.comm) == 0
-        println("$field[", length(getfield(domain, field)), "]: ", getfield(domain, field))
+        for field in fields
+            # println("$field[", length(getfield(domain, field)), "]: ", getfield(domain, field))
+        end
     end
 end
 
-function printNormAllFields(domain)
-    fields = [:x, :xd, :fx, :nodalMass, :symmX, :dxx, :delv_xi]
-    printNormFields(domain, fields)
+function printNormAllFields(domain, location="")
+    if getMyRank(domain.comm) == 0
+        # println("Location: ", location)
+    end
+    # fields = [:x, :xd, :fx, :nodalMass, :symmX, :dxx, :delv_xi]
+    fields = [:x, :symmX, :dxx, :delv_xi]
+    printNormField(domain, fields)
 end
 
-export print_fields, printNormFields, printNormAllFields
+
+function printAllFields(domain, location="")
+    if getMyRank(domain.comm) == 0
+        # println("m_colLoc: ", domain.m_colLoc)
+        # println("Location: ", location)
+    end
+    # fields = [:x, :xd, :fx, :nodalMass, :symmX, :nodelist]
+    fields = [:x, :y, :z]
+    printField(domain, fields)
+end
+
+export print_fields, printNormFields, printAllFields, printNormAllFields
 end # module
