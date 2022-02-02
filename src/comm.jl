@@ -794,7 +794,7 @@ function commSBN(domain::Domain, fields)
 
    myRank = MPI.Comm_rank(comm)
 
-   if planeMin || planeMax
+   if planeMin | planeMax
       opCount = dx * dy ;
 
       if planeMin
