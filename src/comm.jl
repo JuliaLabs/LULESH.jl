@@ -821,7 +821,7 @@ function commSBN(domain::Domain, fields)
       end
    end
 
-   if rowMin || rowMax
+   if rowMin | rowMax
       opCount = dx * dz
 
       if rowMin
@@ -853,7 +853,7 @@ function commSBN(domain::Domain, fields)
       end
    end
 
-   if colMin || colMax
+   if colMin | colMax
       opCount = dy * dz ;
 
       if colMin
@@ -1147,7 +1147,7 @@ function commMonoQ(domain::Domain)
 
    myRank = MPI.Comm_rank(comm)
 
-   if planeMin || planeMax
+   if planeMin | planeMax
       # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE */
       opCount = dx * dy
 
@@ -1180,7 +1180,7 @@ function commMonoQ(domain::Domain)
       end
    end
 
-   if rowMin || rowMax
+   if rowMin | rowMax
       # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
       opCount = dx * dz
 
@@ -1211,7 +1211,7 @@ function commMonoQ(domain::Domain)
          pmsg += 1
       end
    end
-   if colMin || colMax
+   if colMin | colMax
       # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
       opCount = dy * dz
 
