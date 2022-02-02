@@ -319,7 +319,7 @@ function commSend(domain::Domain, msgType, fields,
    myRank = MPI.Comm_rank(comm)
 
    # post sends
-   if planeMin || planeMax
+   if planeMin | planeMax
       # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
       sendCount = dx * dy
 
