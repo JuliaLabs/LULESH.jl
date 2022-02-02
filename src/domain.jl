@@ -2937,9 +2937,14 @@ function lagrangeElements(domain::Domain)
     domain.delx_eta = Vector{Float64}(undef, domain.numElem)
     domain.delx_zeta = Vector{Float64}(undef, domain.numElem)
 
-    domain.delv_xi = Vector{Float64}(undef, domain.numElem)
-    domain.delv_eta = Vector{Float64}(undef, domain.numElem)
-    domain.delv_zeta = Vector{Float64}(undef, domain.numElem)
+    allElem = domain.numElem +  # local elem
+            2*domain.sizeX*domain.sizeY + # plane ghosts
+            2*domain.sizeX*domain.sizeZ + # row ghosts
+            2*domain.sizeY*domain.sizeZ
+
+    domain.delv_xi = Vector{Float64}(undef, allElem)
+    domain.delv_eta = Vector{Float64}(undef, allElem)
+    domain.delv_zeta = Vector{Float64}(undef, allElem)
 
     calcLagrangeElements(domain, delt)
 
