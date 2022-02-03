@@ -293,7 +293,6 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
             end
 
             if domain.m_colLoc == domain.m_tp-1
-                # FIXIT this goes out of bounds due to INDEXING
                 elemBC[planeInc+(j-1)*edgeElems+edgeElems] |= XI_P_FREE
             else
                 elemBC[planeInc+(j-1)*edgeElems+edgeElems] |= XI_P_COMM
