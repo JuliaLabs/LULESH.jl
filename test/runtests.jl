@@ -45,8 +45,6 @@ end
 
 @testset "examples" begin
     @testset "benchmark.jl" begin
-        run_example("benchmark.jl", `-s 45 $(args)`)
-        run_example("benchmark.jl", `-s 45 --mpi $(args)`; nranks=1)
-        run_example("benchmark.jl", `-s 45 --mpi $(args)`; nranks=8)
+        run_example("benchmark.jl", `-s 8 --mpi $(args)`; nranks=1)
     end
 end
