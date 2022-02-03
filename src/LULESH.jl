@@ -118,8 +118,8 @@ function printNormAllFields(domain, location="")
         # println("Location: ", location)
     end
     # fields = [:x, :xd, :fx, :nodalMass, :symmX, :dxx, :delv_xi]
-    fields = [:x, :commDataSend, :commDataRecv]
-    printNormField(domain, fields)
+    # fields = [:x, :commDataSend, :commDataRecv]
+    # printNormField(domain, fields)
 end
 
 
@@ -128,8 +128,8 @@ function printAllFields(domain, location="")
         # println("Location: ", location)
     end
     # fields = [:x, :xd, :fx, :nodalMass, :symmX, :nodelist]
-    fields = [:commDataSend, :commDataRecv]
-    printField(domain, fields)
+    # fields = [:commDataSend, :commDataRecv]
+    # printField(domain, fields)
 end
 
 export printField, printNormField, printAllFields, printNormAllFields
