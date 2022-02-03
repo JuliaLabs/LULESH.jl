@@ -19,6 +19,15 @@ else
     args = ``
 end
 
+using JET
+MPI.Init()
+
+@testset "JET" begin
+    domain = Domain(LuleshProblem(1, true, 45, 1, 1, 1, Vector, Float64, MPI.COMM_WORLD))
+    test_call(lagrangeLeapFrog, (typeof(domain),))
+    test_opt(lagrangeLeapFrog, (typeof(domain),))
+end
+
 MPI.install_mpiexecjl(; destdir = ".", force=true)
 
 function run_example(name, args; nranks=nothing)
