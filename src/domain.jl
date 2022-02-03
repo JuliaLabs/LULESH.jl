@@ -2342,7 +2342,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == XI_M_FREE
             delvm = 0.0
         else
-            error("Error")
+            # error("Error")
+            delvm = 0.0
         end
 
         case = bcMask & XI_P
@@ -2353,7 +2354,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == XI_P_FREE
             delvp = 0.0
         else
-            error("Error")
+            # error("Error")
+            delvp = 0.0
         end
 
         delvm = delvm * norm
@@ -2389,7 +2391,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == ETA_M_FREE
             delvm = 0.0
         else
-            error("Error")
+            delvm = 0.0
+            # error("Error")
         end
 
         case = bcMask & ETA_P
@@ -2400,7 +2403,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == ETA_P_FREE
             delvp = 0.0
         else
-            error("Error")
+            delvp = 0.0
+            # error("Error")
         end
 
         delvm = delvm * norm
@@ -2435,7 +2439,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == ZETA_M_FREE
             delvm = 0.0
         else
-            error("Error")
+            delvm = 0.0
+            # error("Error")
         end
 
         case = bcMask & ZETA_P
@@ -2446,7 +2451,8 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == ZETA_P_FREE
             delvp = 0.0
         else
-            error("Error")
+            delvp = 0.0
+            # error("Error")
         end
 
         delvm = delvm * norm

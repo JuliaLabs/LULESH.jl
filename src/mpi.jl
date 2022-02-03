@@ -7,10 +7,6 @@ function setupCommBuffers!(domain::Domain, edgeNodes::Int)
     # allocate a buffer large enough for nodal ghost data
     maxEdgeSize = max(domain.sizeX, max(domain.sizeY, domain.sizeZ))+1
 
-    if getMyRank(domain.comm) == 0
-        println("setup maxPlaneSize: ", maxEdgeSize*maxEdgeSize)
-        println("setup maxEdgeSize: ", maxEdgeSize)
-    end
     m_maxPlaneSize = cache_align_real(maxEdgeSize*maxEdgeSize)
     m_maxEdgeSize = cache_align_real(maxEdgeSize)
     maxPlaneSize = m_maxPlaneSize
