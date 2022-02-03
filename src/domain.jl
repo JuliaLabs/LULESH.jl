@@ -2117,8 +2117,8 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         relativeVolume = volume / domain.volo[k]
         domain.vnew[k] = relativeVolume
         if domain.vnew[k] <= 0.0
-            println("Rank: ", getMyRank(domain.comm))
-            error("Volume Error :2108 k="*string(k)*" volume="*string(volume)*" volo="*string(domain.volo[k])*" xyz="*string((x_local, y_local, z_local)))
+            # @error "negative volume found in calcKinematicsForElems" rank=getMyRank(domain.comm) k volume volo=domain.volo[k] xyz=(x_local, y_local, z_local)
+            error("Volume Error")
         end
         domain.delv[k] = relativeVolume - domain.v[k]
 
