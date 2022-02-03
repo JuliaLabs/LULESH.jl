@@ -16,9 +16,6 @@ copyto_zero!(dest, doffs, src, soffs, nelems) = copyto!(dest, doffs+1, src, soff
 
 
 function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, planeOnly)
-   if getMyRank(domain.comm) == 0
-      println("commRecv")
-   end
    comm = domain.comm
    if comm === nothing
        return
@@ -294,9 +291,6 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          cmsg += 1
       end
    end
-   if getMyRank(domain.comm) == 0
-      println("recvRequest[", pmsg + emsg + cmsg,"]: ", length(domain.recvRequest))
-   end
 end
 
 function commSend(domain::Domain, msgType, fields,
@@ -306,10 +300,6 @@ function commSend(domain::Domain, msgType, fields,
    if comm === nothing
       return
    end
-   if getMyRank(domain.comm) == 0
-      println("commSend")
-   end
-   printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
 
    xferFields = length(fields)
 
@@ -319,19 +309,12 @@ function commSend(domain::Domain, msgType, fields,
    pmsg = 0 # plane comm msg
    emsg = 0 # edge comm msg
    cmsg = 0 # corner comm msg
-   if getMyRank(domain.comm) == 0
-      println("maxPlaneSize: ", domain.maxPlaneSize)
-      println("maxEdgeSize: ", domain.maxEdgeSize)
-   end
 
 
    # MPI_Status status[26] ;
 
    # assume communication to 6 neighbors by default
    rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
-   if getMyRank(domain.comm) == 0
-      println("neighbors: ", rowMin, " ", rowMax, " ", colMin, " ", colMax, " ", planeMin, " ", planeMax)
-   end
 
    fill!(domain.sendRequest, MPI.Request())
    myRank = MPI.Comm_rank(comm)
@@ -783,10 +766,6 @@ function commSend(domain::Domain, msgType, fields,
          cmsg += 1
       end
    end
-   if getMyRank(domain.comm) == 0
-      println("sendRequest[", pmsg + emsg + cmsg,"]: ", length(domain.sendRequest))
-   end
-   printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
 
    for i in 1:(pmsg+emsg+cmsg)
       MPI.Wait!(domain.sendRequest[i])
@@ -798,9 +777,6 @@ function commSBN(domain::Domain, fields)
    comm = domain.comm
    if comm === nothing
       return
-   end
-   if getMyRank(domain.comm) == 0
-      println("commSBN")
    end
 
    xferFields = length(fields)
@@ -1153,9 +1129,6 @@ function commMonoQ(domain::Domain)
    if comm === nothing
        return
    end
-   if getMyRank(domain.comm) == 0
-      println("commMonoQ")
-   end
 
    xferFields = 3 # delv_xi, delv_eta, delv_zeta
    fields = (domain.delv_xi, domain.delv_eta, domain.delv_zeta)
@@ -1279,9 +1252,6 @@ function commSyncPosVel(domain::Domain)
    comm = domain.comm
    if comm === nothing
       return
-   end
-   if getMyRank(domain.comm) == 0
-      println("commSyncPosVel")
    end
    doRecv = false
    xferFields = 6 ; # x, y, z, xd, yd, zd
@@ -1634,11 +1604,6 @@ function commSyncPosVel(domain::Domain)
       end
       cmsg += 1
    end
-
-   if getMyRank(domain.comm) == 0
-      println("waitRequest[", "$pmsg + $emsg + $cmsg","]: ", length(domain.recvRequest))
-   end
-   printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
 
    return nothing
 end
