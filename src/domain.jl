@@ -258,31 +258,31 @@ function setupConnectivityBC!(domain::Domain, edgeElems)
         rowInc   = (i-1)*edgeElems
         for j in 1:edgeElems
             if domain.m_planeLoc == 0
-                elemBC[rowInc+(j-1)+1] |= ZETA_M_SYMM
+                elemBC[rowInc+j] |= ZETA_M_SYMM
             else
-                elemBC[rowInc+(j-1)+1] |= ZETA_M_COMM
-                lzetam[rowInc+(j-1)+1] = ghostIdx[1] + rowInc + (j-1)
+                elemBC[rowInc+j] |= ZETA_M_COMM
+                lzetam[rowInc+j] = ghostIdx[1] + rowInc + (j-1)
             end
 
             if domain.m_planeLoc == domain.m_tp-1
-                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems+1] |= ZETA_P_FREE
+                elemBC[rowInc+j+domElems-edgeElems*edgeElems] |= ZETA_P_FREE
             else
-                elemBC[rowInc+(j-1)+domElems-edgeElems*edgeElems+1] |= ZETA_P_COMM
-                lzetap[rowInc+(j-1)+domElems-edgeElems*edgeElems+1] = ghostIdx[2] + rowInc + (j-1)
+                elemBC[rowInc+j+domElems-edgeElems*edgeElems] |= ZETA_P_COMM
+                lzetap[rowInc+j+domElems-edgeElems*edgeElems] = ghostIdx[2] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == 0
-                elemBC[planeInc+(j-1)+1] |= ETA_M_SYMM
+                elemBC[planeInc+j] |= ETA_M_SYMM
             else
-                elemBC[planeInc+(j-1)+1] |= ETA_M_COMM
-                letam[planeInc+(j-1)+1] = ghostIdx[3] + rowInc + (j-1)
+                elemBC[planeInc+j] |= ETA_M_COMM
+                letam[planeInc+j] = ghostIdx[3] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == domain.m_tp-1
-                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems+1] |= ETA_P_FREE
+                elemBC[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
             else
-                elemBC[planeInc+(j-1)+edgeElems*edgeElems-edgeElems+1] |= ETA_P_COMM
-                letap[planeInc+(j-1)+edgeElems*edgeElems-edgeElems+1] = ghostIdx[4] +  rowInc + (j-1)
+                elemBC[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
+                letap[planeInc+j+edgeElems*edgeElems-edgeElems] = ghostIdx[4] +  rowInc + (j-1)
             end
 
             if domain.m_colLoc == 0
@@ -866,51 +866,51 @@ function setupBoundaryConditions(domain::Domain, edgeElems)
 
   # symmetry plane or free surface BCs
 
-    for i in 0:(edgeElems-1)
-        planeInc = i*edgeElems*edgeElems
-        rowInc   = i*edgeElems
-        for j in 0:(edgeElems-1)
+    for i in 1:edgeElems
+        planeInc = (i-1)*edgeElems*edgeElems
+        rowInc   = (i-1)*edgeElems
+        for j in 1:edgeElems
             if domain.m_planeLoc == 0
-                domain.elemBC[rowInc+j+1] |= ZETA_M_SYMM
+                domain.elemBC[rowInc+j] |= ZETA_M_SYMM
             else
-                domain.elemBC[rowInc+j+1] |= ZETA_M_COMM
-                domain.lzetam[rowInc+j+1] = ghostIdx[1] + rowInc + j
+                domain.elemBC[rowInc+j] |= ZETA_M_COMM
+                domain.lzetam[rowInc+j] = ghostIdx[1] + rowInc + (j-1)
             end
 
             if domain.m_planeLoc == domain.m_tp-1
-                domain.elemBC[rowInc+j+domain.numElem-edgeElems*edgeElems+1] |= ZETA_P_FREE
+                domain.elemBC[rowInc+j+domain.numElem-edgeElems*edgeElems] |= ZETA_P_FREE
             else
-                domain.elemBC[rowInc+j+domain.numElem-edgeElems*edgeElems+1] |= ZETA_P_COMM
-                domain.lzetap[rowInc+j+domain.numElem-edgeElems*edgeElems+1] = ghostIdx[2] + rowInc + j
+                domain.elemBC[rowInc+j+domain.numElem-edgeElems*edgeElems] |= ZETA_P_COMM
+                domain.lzetap[rowInc+j+domain.numElem-edgeElems*edgeElems] = ghostIdx[2] + rowInc + (j-1)
             end
 
             if domain.m_rowLoc == 0
-                domain.elemBC[planeInc+j+1] |= ETA_M_SYMM
+                domain.elemBC[planeInc+j] |= ETA_M_SYMM
             else
-                domain.elemBC[planeInc+j+1] |= ETA_M_COMM
-                domain.letam[planeInc+j+1] = ghostIdx[3] + rowInc + j
+                domain.elemBC[planeInc+j] |= ETA_M_COMM
+                domain.letam[planeInc+j] = ghostIdx[3] + rowInc + (j-1)
             end
 
 
             if domain.m_rowLoc == domain.m_tp-1
-                domain.elemBC[planeInc+j+edgeElems*edgeElems-edgeElems+1] |= ETA_P_FREE
+                domain.elemBC[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_FREE
             else
-                domain.elemBC[planeInc+j+edgeElems*edgeElems-edgeElems+1] |= ETA_P_COMM
-                domain.letap[planeInc+j+edgeElems*edgeElems-edgeElems+1] = ghostIdx[4] +  rowInc + j
+                domain.elemBC[planeInc+j+edgeElems*edgeElems-edgeElems] |= ETA_P_COMM
+                domain.letap[planeInc+j+edgeElems*edgeElems-edgeElems] = ghostIdx[4] +  rowInc + (j-1)
             end
 
             if domain.m_colLoc == 0
-                domain.elemBC[planeInc+j*edgeElems+1] |= XI_M_SYMM
+                domain.elemBC[planeInc+(j-1)*edgeElems+1] |= XI_M_SYMM
             else
-                domain.elemBC[planeInc+j*edgeElems+1] |= XI_M_COMM
-                domain.lxim[planeInc+j*edgeElems+1] = ghostIdx[5] + rowInc + j
+                domain.elemBC[planeInc+(j-1)*edgeElems+1] |= XI_M_COMM
+                domain.lxim[planeInc+(j-1)*edgeElems+1] = ghostIdx[5] + rowInc + (j-1)
             end
 
             if domain.m_colLoc == domain.m_tp-1
-                domain.elemBC[planeInc+j*edgeElems+edgeElems] |= XI_P_FREE
+                domain.elemBC[planeInc+(j-1)*edgeElems+edgeElems] |= XI_P_FREE
             else
-                domain.elemBC[planeInc+j*edgeElems+edgeElems] |= XI_P_COMM
-                domain.lxip[planeInc+j*edgeElems+edgeElems] = ghostIdx[6] + rowInc + j
+                domain.elemBC[planeInc+(j-1)*edgeElems+edgeElems] |= XI_P_COMM
+                domain.lxip[planeInc+(j-1)*edgeElems+edgeElems] = ghostIdx[6] + rowInc + (j-1)
             end
         end
     end
@@ -2334,7 +2334,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         norm = 1.0 / ( domain.delv_xi[i] + ptiny )
 
         case = bcMask & XI_M
-        if case == 0
+        if case == 0 || case == XI_M_COMM
             # MAYBE
             delvm = domain.delv_xi[domain.lxim[i]+1]
         elseif case == XI_M_SYMM
@@ -2342,19 +2342,19 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         elseif case == XI_M_FREE
             delvm = 0.0
         else
-            # error("Error")
+            error("Error")
             delvm = 0.0
         end
 
         case = bcMask & XI_P
-        if case == 0
+        if case == 0 || case == XI_P_COMM
             delvp = domain.delv_xi[domain.lxip[i]]
         elseif case == XI_P_SYMM
             delvp = domain.delv_xi[i]
         elseif case == XI_P_FREE
             delvp = 0.0
         else
-            # error("Error")
+            error("Error")
             delvp = 0.0
         end
 
@@ -2384,7 +2384,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         norm = 1.0 / ( domain.delv_eta[i] + ptiny )
 
         case = bcMask & ETA_M
-        if case == 0
+        if case == 0 || case == ETA_M_COMM
             delvm = domain.delv_eta[domain.letam[i]+1]
         elseif case == ETA_M_SYMM
             delvm = domain.delv_eta[i]
@@ -2392,11 +2392,11 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
             delvm = 0.0
         else
             delvm = 0.0
-            # error("Error")
+            error("Error")
         end
 
         case = bcMask & ETA_P
-        if case == 0
+        if case == 0 || case == ETA_P_COMM
             delvp = domain.delv_eta[domain.letap[i]+1]
         elseif case == ETA_P_SYMM
             delvp = domain.delv_eta[i]
@@ -2404,7 +2404,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
             delvp = 0.0
         else
             delvp = 0.0
-            # error("Error")
+            error("Error")
         end
 
         delvm = delvm * norm
@@ -2432,7 +2432,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
         norm = 1.0 / ( domain.delv_zeta[i] + ptiny )
 
         case = bcMask & ZETA_M
-        if case == 0
+        if case == 0 || case == ZETA_M_COMM
             delvm = domain.delv_zeta[domain.lzetam[i]+1]
         elseif case == ZETA_M_SYMM
             delvm = domain.delv_zeta[i]
@@ -2440,11 +2440,11 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
             delvm = 0.0
         else
             delvm = 0.0
-            # error("Error")
+            error("Error")
         end
 
         case = bcMask & ZETA_P
-        if case == 0
+        if case == 0 || case == ZETA_P_COMM
             delvp = domain.delv_zeta[domain.lzetap[i]+1]
         elseif case == ZETA_P_SYMM
             delvp = domain.delv_zeta[i]
@@ -2452,7 +2452,7 @@ function calcMonotonicQRegionForElems(domain::Domain, qlc_monoq, qqc_monoq,
             delvp = 0.0
         else
             delvp = 0.0
-            # error("Error")
+            error("Error")
         end
 
         delvm = delvm * norm

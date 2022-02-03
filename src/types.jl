@@ -12,7 +12,7 @@
     lzetam::VD{IndexT}
     lzetap::VD{IndexT}
 
-    elemBC::VD{Int}         # elem face symm/free-surf flag g
+    elemBC::VD{UInt32}         # elem face symm/free-surf flag g
 
     e::VD{FT}             # energy g
     d_e::VD{FT}           # change in energy g
