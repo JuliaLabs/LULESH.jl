@@ -1101,7 +1101,7 @@ function integrateStressForElems(domain::Domain, sigxx, sigyy, sigzz, determ)
         _, detJ = calcElemShapeFunctionDerivatives(x_local, y_local, z_local)
         determ[k] = detJ
         if determ[k] <= 0.0
-            error("Early Volume Error, "*string(k)*", val="*string(determ[k]))
+            error("Early Volume Error")
         end
         B = calcElemNodeNormals(x_local, y_local, z_local)
         sumElemStressesToNodeForces(B, sigxx, sigyy, sigzz, fx_elem, fy_elem, fz_elem, k)
@@ -1755,7 +1755,7 @@ function calcVolumeForceForElems(domain::Domain)
     # check for negative element volume and abort if found
     for i in 1:numElem
         if determ[i] <= 0.0
-            error("Mid Volume Error, "*string(i)*", val="*string(determ[i]))
+            error("Mid Volume Error")
         end
     end
     calcHourglassControlForElems(domain, determ, hgcoef)
@@ -2117,7 +2117,7 @@ function calcKinematicsForElems(domain::Domain, numElem, dt)
         domain.vnew[k] = relativeVolume
         if domain.vnew[k] <= 0.0
             # @error "negative volume found in calcKinematicsForElems" rank=getMyRank(domain.comm) k volume volo=domain.volo[k] xyz=(x_local, y_local, z_local)
-            error("Volume Error")
+            error("Volume Error: calcKinematicsForElems")
         end
         domain.delv[k] = relativeVolume - domain.v[k]
 
@@ -2168,7 +2168,7 @@ function calcLagrangeElements(domain, delt)
 
             # See if any volumes are negative, and take appropriate action.
             if domain.vnew[k] <= 0.0
-                error("Volume Error :2157 k="*string(k))
+                error("Volume Error :2157")
             end
         end
     end
@@ -2904,7 +2904,7 @@ function applyMaterialPropertiesForElems(domain::Domain)
                 end
             end
             if vc <= 0.0
-                error("Volume Error :2887 i="*string(i))
+                error("Volume Error :2887")
             end
         end
         evalEOSForElems(domain::Domain, vnewc, length)
@@ -2925,7 +2925,7 @@ function updateVolumesForElems(domain::Domain)
             end
             domain.v[i] = tmpV
             if tmpV <= 0.0
-                error("Volume Error :2908 i="*string(i))
+                error("Volume Error :2908")
             end
         end
     end
