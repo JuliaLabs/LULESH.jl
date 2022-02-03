@@ -80,3 +80,6 @@ comm_max(data::Float64, ::Nothing) = data
 
 comm_min(data::Float64, comm::MPI.Comm) = MPI.Allreduce(data, MPI.MIN, comm)
 comm_min(data::Float64, ::Nothing) = data
+
+comm_barrier(comm::MPI.Comm) = MPI.Barrier(comm)
+comm_barrier(::Nothing) = nothing

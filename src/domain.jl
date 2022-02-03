@@ -2098,12 +2098,13 @@ end
 
 
 function calcKinematicsForElems(domain::Domain, numElem, dt)
+    comm_barrier(domain.mpi_comm)
+
     nodelist = domain.nodelist
     # loop over all elements
-    MPI.Barrier(domain.comm)
     # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
     for k in 1:numElem
-        MPI.Barrier(domain.comm)
+        comm_barrier(domain.mpi_comm)
         # get nodal coordinates from global arrays and copy into local arrays
         @inbounds begin
             x_local = collectNodal(nodelist, domain.x, (k-1)*8)
