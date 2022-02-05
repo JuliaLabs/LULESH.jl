@@ -17,14 +17,6 @@ MPI.Init()
 import MPI: libmpi, MPIPtr, MPI_Datatype, MPI_Request,
             MPI_Comm, @mpichk, Buffer, Request, free, Comm
 
-# function free(dt::Datatype)
-#     if dt != DATATYPE_NULL && !Finalized()
-#         # int MPI_Type_free(MPI_Type *type)
-#         @mpichk ccall((:MPI_Type_free, libmpi), Cint, (Ptr{MPI_Datatype},), dt)
-#     end
-#     return nothing
-# end
-
 function billysIrecv!(buf::Buffer)
     req = Request()
     # int MPI_Irecv(void* buf, int count, MPI_Datatype datatype, int source,
@@ -33,7 +25,8 @@ function billysIrecv!(buf::Buffer)
                   (MPIPtr, Cint, MPI_Datatype, Cint, Cint, MPI_Comm, Ptr{MPI_Request}),
                   buf.data, 2, buf.datatype, 0, 0, MPI.COMM_WORLD, req)
     req.buffer = buf
-    finalizer(free, req)
+    finalizer(req) do r
+    end
     return nothing
 end
 
