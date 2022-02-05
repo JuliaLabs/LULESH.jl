@@ -27,17 +27,15 @@ end
 
 mutable struct MyRequest
    val::MPI_Request
-   buffer
 end
 
 function billysIrecv!(buf::MyBuffer)
-    req = MyRequest(0, nothing)
+    req = MyRequest(0)
     # int MPI_Irecv(void* buf, int count, MPI_Datatype datatype, int source,
     #               int tag, MPI_Comm comm, MPI_Request *request)
     ccall((:MPI_Irecv, libmpi), Cint,
                   (MPIPtr, Cint, MPI_Datatype, Cint, Cint, MPI_Comm, Ptr{MPI_Request}),
                   buf.data, 2, buf.datatype, 0, 0, MPI.COMM_WORLD, pointer_from_objref(req))
-    # req.buffer = buf
     finalizer(req) do r
     end
     return nothing
