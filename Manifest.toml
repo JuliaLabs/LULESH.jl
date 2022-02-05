@@ -53,8 +53,8 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[deps.Enzyme]]
 deps = ["Adapt", "CEnum", "Enzyme_jll", "GPUCompiler", "LLVM", "Libdl", "ObjectFile", "Test"]
-git-tree-sha1 = "a44db356255639af805fbbea43d13a54f106d27c"
-repo-rev = "main"
+git-tree-sha1 = "295d8ac52f3ec302c93e2c81695d3c5247998444"
+repo-rev = "typeof"
 repo-url = "https://github.com/wsmoses/Enzyme.jl.git"
 uuid = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 version = "0.9.0-dev"
@@ -129,16 +129,24 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[deps.MPI]]
-deps = ["Distributed", "DocStringExtensions", "Libdl", "MPICH_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "Pkg", "Random", "Requires", "Serialization", "Sockets"]
-git-tree-sha1 = "d56a80d8cf8b9dc3050116346b3d83432b1912c0"
+deps = ["Distributed", "DocStringExtensions", "Libdl", "MPICH_jll", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "Pkg", "Random", "Requires", "Serialization", "Sockets"]
+git-tree-sha1 = "7832d24ca13b4dd12a7c3971ced816822a2aad78"
+repo-rev = "vc/no_finalizer"
+repo-url = "https://github.com/JuliaParallel/MPI.jl.git"
 uuid = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-version = "0.19.2"
+version = "0.19.0"
 
 [[deps.MPICH_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "4b754a51cec47b0366056efcf6e19d95b2ecb54c"
 uuid = "7cb0a576-ebde-5e09-9194-50597f1243b4"
 version = "4.0.0+0"
+
+[[deps.MPItrampoline_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "1a6b2443929a795d7d0b2c02b94cdefa2020ddcb"
+uuid = "f1f71cc9-e9ae-5b93-9b94-4fe0e1ad3748"
+version = "2.8.0+2"
 
 [[deps.Markdown]]
 deps = ["Base64"]
