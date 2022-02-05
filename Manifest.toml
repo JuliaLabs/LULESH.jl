@@ -53,8 +53,8 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[deps.Enzyme]]
 deps = ["Adapt", "CEnum", "Enzyme_jll", "GPUCompiler", "LLVM", "Libdl", "ObjectFile", "Test"]
-git-tree-sha1 = "a44db356255639af805fbbea43d13a54f106d27c"
-repo-rev = "main"
+git-tree-sha1 = "3767231313ff343e4a54c6e5b46ad1e74cd948c5"
+repo-rev = "typeof"
 repo-url = "https://github.com/wsmoses/Enzyme.jl.git"
 uuid = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 version = "0.9.0-dev"

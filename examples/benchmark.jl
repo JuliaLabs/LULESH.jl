@@ -6,6 +6,13 @@ using Enzyme
 # Enzyme.API.printall!(true)
 # Enzyme.API.instname!(true)
 
+function printunecessary!(val)
+    ptr = cglobal((:EnzymePrintUnnecessary, Enzyme.API.libEnzyme))
+    ccall((:EnzymeSetCLBool, Enzyme.API.libEnzyme), Cvoid, (Ptr{Cvoid}, UInt8), ptr, val)
+end
+
+# printunecessary!(true)
+
 Enzyme.API.inlineall!(true)
 # Size of Domain is around 1024
 Enzyme.API.maxtypeoffset!(32)
@@ -48,14 +55,14 @@ function main(nx, structured, num_iters, mpi, enzyme)
     # getnodalMass = nodalMass(domain)
 
     # Initial domain boundary communication
-    commRecv(domain, MSG_COMM_SBN, 1,
-                domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                true, false)
-    fields = (domain.nodalMass,)
-    commSend(domain, MSG_COMM_SBN, fields,
-             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-             true, false)
-    commSBN(domain, fields)
+    # commRecv(domain, MSG_COMM_SBN, 1,
+    #             domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+    #             true, false)
+    # fields = (domain.nodalMass,)
+    # commSend(domain, MSG_COMM_SBN, fields,
+    #          domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+    #          true, false)
+    # commSBN(domain, fields)
 
     # End initialization
     if mpi
@@ -77,7 +84,8 @@ function main(nx, structured, num_iters, mpi, enzyme)
         # this has been moved after computation of volume forces to hide launch latencies
         timeIncrement!(domain)
         if enzyme
-            Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+            Enzyme.autodiff(LULESH.calcForceForNodes, Duplicated(domain, shadowDomain))
+            # Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
         else
             lagrangeLeapFrog(domain)
         end

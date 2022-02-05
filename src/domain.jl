@@ -1766,16 +1766,16 @@ function calcForceForNodes(domain::Domain)
              domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
              true, false)
 
-    domain.fx .= 0.0
-    domain.fy .= 0.0
-    domain.fz .= 0.0
+    # domain.fx .= 0.0
+    # domain.fy .= 0.0
+    # domain.fz .= 0.0
 
-    calcVolumeForceForElems(domain);
+    # calcVolumeForceForElems(domain);
     fields = (domain.fx, domain.fy, domain.fz)
     commSend(domain, MSG_COMM_SBN, fields,
              domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
              true, false)
-    commSBN(domain, fields)
+    # commSBN(domain, fields)
 end
 
 function calcAccelerationForNodes(domain::Domain)
@@ -1845,28 +1845,28 @@ function lagrangeNodal(domain::Domain)
     # acceleration boundary conditions.
     calcForceForNodes(domain)
 
-    if SEDOV_SYNC_POS_VEL_EARLY
-        commRecv(domain, MSG_SYNC_POS_VEL, 6,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                 false, false)
-    end
+    # if SEDOV_SYNC_POS_VEL_EARLY
+    #     commRecv(domain, MSG_SYNC_POS_VEL, 6,
+    #              domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+    #              false, false)
+    # end
 
-    calcAccelerationForNodes(domain)
+    # calcAccelerationForNodes(domain)
 
-    applyAccelerationBoundaryConditionsForNodes(domain)
+    # applyAccelerationBoundaryConditionsForNodes(domain)
 
-    calcVelocityForNodes(domain, delt, u_cut)
-    calcPositionForNodes(domain, delt)
+    # calcVelocityForNodes(domain, delt, u_cut)
+    # calcPositionForNodes(domain, delt)
 
-    if SEDOV_SYNC_POS_VEL_EARLY
-        fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
-        commSend(domain, MSG_SYNC_POS_VEL, fields,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                 false, false)
-        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
-        commSyncPosVel(domain)
-        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
-    end
+    # if SEDOV_SYNC_POS_VEL_EARLY
+    #     fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+    #     commSend(domain, MSG_SYNC_POS_VEL, fields,
+    #              domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+    #              false, false)
+    #     # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
+    #     commSyncPosVel(domain)
+    #     # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
+    # end
 
     return nothing
 end
@@ -3075,8 +3075,8 @@ function lagrangeLeapFrog(domain::Domain)
 
    # calculate element quantities (i.e. velocity gradient & q), and update
    # material states */
-   lagrangeElements(domain)
+#    lagrangeElements(domain)
 
-   calcTimeConstraintsForElems(domain)
+#    calcTimeConstraintsForElems(domain)
    return nothing
 end

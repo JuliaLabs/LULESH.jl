@@ -15,10 +15,29 @@ MPI.Init()
 # end
 
 import MPI: libmpi, MPIPtr, MPI_Datatype, MPI_Request,
-            MPI_Comm, @mpichk, Buffer, Request, free, Comm
+            MPI_Comm, @mpichk, free, Comm, Datatype
 
-function billysIrecv!(buf::Buffer)
-    req = Request()
+struct MyBuffer{A}
+    data::A
+    datatype::MPI.Datatype
+end        
+function MyBuffer(sub::Base.FastContiguousSubArray)
+    MyBuffer(sub, Datatype(eltype(sub)))
+end
+
+mutable struct MyRequest
+   val::MPI_Request
+   buffer
+end
+
+# const MYMPI_REQUEST_NULL = Ref(MPI_Request(_mpi_val_counter += 1))
+
+#MyRequest() = MyRequest(MPI.Consts.MPI_REQUEST_NULL[], nothing)
+Base.unsafe_convert(::Type{MPI_Request}, request::MyRequest) = request.val
+Base.unsafe_convert(::Type{Ptr{MPI_Request}}, request::MyRequest) = convert(Ptr{MPI_Request}, pointer_from_objref(request))
+
+function billysIrecv!(buf::MyBuffer)
+    req = MPI.Request()
     # int MPI_Irecv(void* buf, int count, MPI_Datatype datatype, int source,
     #               int tag, MPI_Comm comm, MPI_Request *request)
     ccall((:MPI_Irecv, libmpi), Cint,
@@ -30,8 +49,8 @@ function billysIrecv!(buf::Buffer)
     return nothing
 end
 
-function mycalcForceForNodes(data, myRank)
-    data = MPI.Buffer(view(data, 1:2))
+function mycalcForceForNodes(data)
+    data = MyBuffer(view(data, 1:2))
     billysIrecv!(data) #domain.comm::MPI.Comm)
    return nothing
 end
@@ -40,10 +59,10 @@ Enzyme.API.printall!(true)
 Enzyme.API.typeWarning!(false)
 Enzyme.API.maxtypeoffset!(32)
 Enzyme.API.inlineall!(true)
-myRank = MPI.Comm_rank(MPI.COMM_WORLD)
 x = [1.0, 2.0]
 dx = [3.0, 5.0]
-Enzyme.autodiff(mycalcForceForNodes, Duplicated(x, dx), myRank)
+# mycalcForceForNodes(x, myRank)
+Enzyme.autodiff(mycalcForceForNodes, Duplicated(x, dx))
 
 # using MPI
 # using LULESH
