@@ -30,12 +30,6 @@ mutable struct MyRequest
    buffer
 end
 
-# const MYMPI_REQUEST_NULL = Ref(MPI_Request(_mpi_val_counter += 1))
-
-#MyRequest() = MyRequest(MPI.Consts.MPI_REQUEST_NULL[], nothing)
-Base.unsafe_convert(::Type{MPI_Request}, request::MyRequest) = request.val
-Base.unsafe_convert(::Type{Ptr{MPI_Request}}, request::MyRequest) = convert(Ptr{MPI_Request}, pointer_from_objref(request))
-
 function billysIrecv!(buf::MyBuffer)
     req = MyRequest(0, nothing)
     # int MPI_Irecv(void* buf, int count, MPI_Datatype datatype, int source,
@@ -43,24 +37,28 @@ function billysIrecv!(buf::MyBuffer)
     ccall((:MPI_Irecv, libmpi), Cint,
                   (MPIPtr, Cint, MPI_Datatype, Cint, Cint, MPI_Comm, Ptr{MPI_Request}),
                   buf.data, 2, buf.datatype, 0, 0, MPI.COMM_WORLD, pointer_from_objref(req))
-    req.buffer = buf
+    # req.buffer = buf
     finalizer(req) do r
     end
     return nothing
 end
 
 function mycalcForceForNodes(data)
-    data = MyBuffer(view(data, 1:2))
+    data = MyBuffer(view(data, 126:127))
     billysIrecv!(data) #domain.comm::MPI.Comm)
    return nothing
 end
 
 Enzyme.API.printall!(true)
 Enzyme.API.typeWarning!(false)
-Enzyme.API.maxtypeoffset!(32)
+Enzyme.API.maxtypeoffset!(1000)
 Enzyme.API.inlineall!(true)
-x = [1.0, 2.0]
-dx = [3.0, 5.0]
+x = Float64[]
+dx = Float64[]
+for i in 1:1000
+   push!(x, 1.0)
+   push!(x, 0.0)
+end
 # mycalcForceForNodes(x, myRank)
 Enzyme.autodiff(mycalcForceForNodes, Duplicated(x, dx))
 
