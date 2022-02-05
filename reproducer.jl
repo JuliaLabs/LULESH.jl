@@ -17,23 +17,29 @@ MPI.Init()
 import MPI: libmpi, MPIPtr, MPI_Datatype, MPI_Request,
             MPI_Comm, @mpichk, Buffer, Request, free, Comm
 
+# function free(dt::Datatype)
+#     if dt != DATATYPE_NULL && !Finalized()
+#         # int MPI_Type_free(MPI_Type *type)
+#         @mpichk ccall((:MPI_Type_free, libmpi), Cint, (Ptr{MPI_Datatype},), dt)
+#     end
+#     return nothing
+# end
+
 function billysIrecv!(buf::Buffer)
     req = Request()
     # int MPI_Irecv(void* buf, int count, MPI_Datatype datatype, int source,
     #               int tag, MPI_Comm comm, MPI_Request *request)
     ccall((:MPI_Irecv, libmpi), Cint,
                   (MPIPtr, Cint, MPI_Datatype, Cint, Cint, MPI_Comm, Ptr{MPI_Request}),
-                  buf.data, buf.count, buf.datatype, 0, 0, MPI.COMM_WORLD, req)
+                  buf.data, 2, buf.datatype, 0, 0, MPI.COMM_WORLD, req)
     req.buffer = buf
     finalizer(free, req)
     return nothing
 end
 
 function mycalcForceForNodes(data, myRank)
-   if myRank == 1
-      data = MPI.Buffer(view(data, 1:2))
-      billysIrecv!(data) #domain.comm::MPI.Comm)
-   end
+    data = MPI.Buffer(view(data, 1:2))
+    billysIrecv!(data) #domain.comm::MPI.Comm)
    return nothing
 end
 
