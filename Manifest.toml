@@ -129,12 +129,10 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[deps.MPI]]
-deps = ["Distributed", "DocStringExtensions", "Libdl", "MPICH_jll", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "Pkg", "Random", "Requires", "Serialization", "Sockets"]
-git-tree-sha1 = "7832d24ca13b4dd12a7c3971ced816822a2aad78"
-repo-rev = "vc/no_finalizer"
-repo-url = "https://github.com/JuliaParallel/MPI.jl.git"
+deps = ["Distributed", "DocStringExtensions", "Libdl", "MPICH_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "Pkg", "Random", "Requires", "Serialization", "Sockets"]
+git-tree-sha1 = "d56a80d8cf8b9dc3050116346b3d83432b1912c0"
 uuid = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-version = "0.19.0"
+version = "0.19.2"
 
 [[deps.MPICH_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
