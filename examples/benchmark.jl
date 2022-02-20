@@ -1,5 +1,8 @@
 using LLVM
-LLVM.clopts("-memdep-block-scan-limit=70000 -dse-memoryssa-walklimit=10000 -attributor-max-iterations=128 -capture-tracking-max-uses-to-explore=256")
+LLVM.clopts("-memdep-block-scan-limit=70000")
+LLVM.clopts("-dse-memoryssa-walklimit=10000")
+LLVM.clopts("-attributor-max-iterations=128")
+LLVM.clopts("-capture-tracking-max-uses-to-explore=256")
 
 using LULESH
 using MPI
