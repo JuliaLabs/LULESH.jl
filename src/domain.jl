@@ -3073,8 +3073,8 @@ function lagrangeLeapFrog(domain::Domain)
 
    # calculate element quantities (i.e. velocity gradient & q), and update
    # material states */
-   lagrangeElements(domain)
+   # lagrangeElements(domain)
 
-   calcTimeConstraintsForElems(domain)
+   # calcTimeConstraintsForElems(domain)
    return nothing
 end
