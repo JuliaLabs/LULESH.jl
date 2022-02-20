@@ -1843,7 +1843,7 @@ function lagrangeNodal(domain::Domain)
     u_cut = domain.u_cut
     # time of boundary condition evaluation is beginning of step for force and
     # acceleration boundary conditions.
-    calcForceForNodes(domain)
+    # calcForceForNodes(domain)
 
     if SEDOV_SYNC_POS_VEL_EARLY
         commRecv(domain, MSG_SYNC_POS_VEL, 6,
@@ -1851,12 +1851,12 @@ function lagrangeNodal(domain::Domain)
                  false, false)
     end
 
-    calcAccelerationForNodes(domain)
+    # calcAccelerationForNodes(domain)
 
-    applyAccelerationBoundaryConditionsForNodes(domain)
+    # applyAccelerationBoundaryConditionsForNodes(domain)
 
-    calcVelocityForNodes(domain, delt, u_cut)
-    calcPositionForNodes(domain, delt)
+    # calcVelocityForNodes(domain, delt, u_cut)
+    # calcPositionForNodes(domain, delt)
 
     if SEDOV_SYNC_POS_VEL_EARLY
         fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
