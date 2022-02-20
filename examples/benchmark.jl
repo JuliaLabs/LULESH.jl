@@ -1,10 +1,13 @@
+using LLVM
+LLVM.clopts("-memdep-block-scan-limit=70000 -dse-memoryssa-walklimit=10000 -attributor-max-iterations=128 -capture-tracking-max-uses-to-explore=256")
+
 using LULESH
 using MPI
 using Enzyme
 
-# Enzyme.API.printperf!(true)
-# Enzyme.API.printall!(true)
-# Enzyme.API.instname!(true)
+Enzyme.API.printperf!(true)
+Enzyme.API.printall!(true)
+Enzyme.API.instname!(true)
 
 Enzyme.API.inlineall!(true)
 # Size of Domain is around 1024
