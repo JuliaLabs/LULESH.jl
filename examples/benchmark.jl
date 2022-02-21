@@ -20,7 +20,7 @@ isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
 
-struct Data
+mutable struct Data
    commDataSend::Vector{Float64}
 end
 
@@ -76,8 +76,8 @@ function main(nx, structured, num_iters, mpi, enzyme)
     domain = Domain(prob)
         shadowDomain = Domain(prob)
      
-	commDataSend = Vector{Float64}(undef, 30*30*30)
-        scommDataSend = Vector{Float64}(undef, 30*30*30)
+	domain = Data(Vector{Float64}(undef, 30*30*30))
+        shadowDomain = Data(Vector{Float64}(undef, 30*30*31))
 
    dx = 30 + 1
    dy = 30 + 1
