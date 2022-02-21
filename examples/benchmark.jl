@@ -20,6 +20,45 @@ isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
 
+function fooSend(domain::Domain, fields,
+                  dx, dy, dz, comm)
+   	
+	xferFields = length(fields)
+   	maxEdgeComm  = xferFields * domain.maxEdgeSize
+        
+	 offset = maxEdgeComm
+         srcOffset = dx - 1
+         for field in fields
+            for i in 0:(dz-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx*dy + 1]
+            end
+            offset += dz
+         end
+         src = MPI.Buffer(domain.commDataSend)
+         req = MPI.Isend(src, 0, 0, comm)
+	 
+	data = MPI.Buffer(domain.commDataRecv)
+         MPI.Recv!(data, 0, 0, comm)
+         
+	MPI.Wait!(req)
+end
+function foo(domain::Domain)
+
+   # assume communication to 6 neighbors by default
+   comm = MPI.COMM_WORLD
+
+   dx = domain.sizeX + 1
+   dy = domain.sizeY + 1
+   dz = domain.sizeZ + 1
+        
+      fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+      fooSend(domain, fields,
+                 dx, dy, dz,
+		 comm)
+
+    return nothing
+end
+
 function main(nx, structured, num_iters, mpi, enzyme)
     # TODO: change default nr to 11
     nr = 1
@@ -44,9 +83,9 @@ function main(nx, structured, num_iters, mpi, enzyme)
      shadowDomain.commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
      shadowDomain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
 	if enzyme
-            Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+            Enzyme.autodiff(foo, Duplicated(domain, shadowDomain))
         else
-            lagrangeLeapFrog(domain)
+            foo(domain)
         end
         MPI.Finalize()
 end
