@@ -27,7 +27,6 @@ end
 
 function Isend(ar, count)
     req = MPI.Request()
-    ccall(:memcpy, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cchar, Cint), ar, ar, 0, count*8)
     finalizer(free, req)
     return req
 end
@@ -41,6 +40,7 @@ function fooSend(domain, fields, dx)
             offset += 2
          end
 	ar = domain.commDataSend
+       ccall(:memcpy, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cchar, Cint), ar, ar, 0, 8)
          req = Isend(ar, 10) #buf.count)
     return nothing 
 end
