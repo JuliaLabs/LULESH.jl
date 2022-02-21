@@ -40,43 +40,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
       return MPI.Irecv!(data, fromProc, msgType, domain.comm::MPI.Comm)
    end
 
-   if planeMax
-      # contiguous memory
-      fromProc = myRank + domain.m_tp^2
-      recvCount = dx * dy * xferFields
-      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
-      domain.recvRequest[pmsg+1] = req
-      pmsg += 1
-   end
-
-   if rowMax
-      # semi-contiguous memory
-      fromProc = myRank + domain.m_tp
-      recvCount = dx * dz * xferFields
-      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
-      domain.recvRequest[pmsg+1] = req
-      pmsg += 1
-   end
-
-   if colMax
-      # scattered memory
-      fromProc = myRank + 1
-      recvCount = dy * dz * xferFields
-      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
-      domain.recvRequest[pmsg+1] = req
-      pmsg += 1
-   end
-
    if !planeOnly
-      # receive data from domains connected only by an edge
-      if rowMin && colMin && doRecv
-         fromProc = myRank - domain.m_tp - 1
-         recvCount = dz * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
-         req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
 
       if rowMax && colMax
          fromProc = myRank + domain.m_tp + 1
@@ -156,31 +120,6 @@ function commSend(domain::Domain, msgType, fields,
    rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
    myRank = MPI.Comm_rank(comm)
-
-      if planeMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-
-         otherRank = myRank - domain.m_tp^2
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+1] = req
-         pmsg += 1
-      end
-
-      if rowMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+1] = req
-         pmsg += 1
-      end
-
-      if colMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - 1
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+1] = req
-         pmsg += 1
-      end
    if !planeOnly
       if rowMin && colMin
          src = MPI.Buffer(view(domain.commDataSend, 1:2))

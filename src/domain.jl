@@ -1858,23 +1858,6 @@ function lagrangeNodal(domain::Domain)
    cmsg = 0 # corner comm msg
 
 
-      if planeMax
-         # contiguous memory
-         MPI.Wait!(domain.recvRequest[pmsg+1])
-         pmsg += 1
-      end
-
-      if rowMax
-         # contiguous memory
-         MPI.Wait!(domain.recvRequest[pmsg+1])
-         pmsg += 1
-      end
-      if colMax
-         # contiguous memory
-         MPI.Wait!(domain.recvRequest[pmsg+1])
-         pmsg += 1
-      end
-
    if rowMax && colMax
       MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
       emsg += 1
