@@ -22,11 +22,6 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    # post receive buffers for all incoming messages
    maxPlaneComm = xferFields * domain.maxPlaneSize
    maxEdgeComm  = xferFields * domain.maxEdgeSize
-   pmsg = 0 # plane comm msg
-   emsg = 0 # edge comm msg
-   cmsg = 0 # corner comm msg
-
-   baseType = MPI.Datatype(Float64) # TODO support Float32
 
    # assume communication to 6 neighbors by default
    rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
@@ -35,32 +30,28 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
    # post receives
    function irecv!(fromProc, offset, recvCount)
-      idx = offset + 1
       data = MPI.Buffer(view(domain.commDataRecv, 1:2))
       return MPI.Irecv!(data, fromProc, msgType, domain.comm::MPI.Comm)
    end
 
-   if !planeOnly
 
+   pmsg = 0
       if rowMax && colMax
          fromProc = myRank + domain.m_tp + 1
-         recvCount = dz * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         recvCount = 0
+         offset = 0
          req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
+         domain.recvRequest[pmsg+1] = req
+         pmsg += 1
       end
 
       if rowMax && colMin
          fromProc = myRank + domain.m_tp - 1
-         recvCount = dz * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
+         recvCount = 0
+         offset = 0
          req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
+         domain.recvRequest[pmsg+1] = req
       end
-
-   end
 end
 
 function commSend(domain::Domain, msgType, fields,
@@ -91,11 +82,10 @@ function commSend(domain::Domain, msgType, fields,
 
          req = MPI.Isend(src, otherRank, msgType, comm)
       	 MPI.Wait!(req)
-         emsg += 1
       end
 
       if rowMin && colMax
-         offset = emsg * maxEdgeComm
+         offset = maxEdgeComm
          srcOffset = dx - 1
          for field in fields
             for i in 0:(dz-1)
