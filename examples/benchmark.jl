@@ -14,7 +14,8 @@ Enzyme.API.instname!(true)
 
 Enzyme.API.inlineall!(true)
 # Size of Domain is around 1024
-Enzyme.API.maxtypeoffset!(32)
+Enzyme.API.maxtypeoffset!(1024)
+# Enzyme.API.maxtypeoffset!(32)
 isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
