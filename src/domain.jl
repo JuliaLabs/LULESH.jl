@@ -1837,22 +1837,6 @@ function calcPositionForNodes(domain::Domain, dt)
 end
 
 function lagrangeNodal(domain::Domain)
-	comm = MPI.COMM_WORLD
-	rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
-        msgType = 0
-      myRank = MPI.Comm_rank(comm)
-
-	commRecv(domain, msgType, 6, 1, 1, 1, false, false)
-      if planeMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp^2
-         req = MPI.Isend(src, otherRank, msgType, comm)
-      	 MPI.Wait!(req)
-      end
-      if planeMax
-         # contiguous memory
-         MPI.Wait!(domain.recvRequest[1])
-      end
 
     return nothing
 end
@@ -3050,17 +3034,22 @@ function calcTimeConstraintsForElems(domain::Domain)
 end
 
 
-function lagrangeLeapFrog(domain::Domain)
+function lagrangeLeapFrog(domain, myRank)
+        msgType = 0
+	comm = MPI.COMM_WORLD
+   
+     if myRank == 0
+      fromProc = 1
+      data = MPI.Buffer(domain)
+      MPI.Recv!(data, fromProc, msgType, comm)
+     end
 
-   # calculate nodal forces, accelerations, velocities, positions, with
-   # applied boundary conditions and slide surface considerations */
-   # Time increment
-   lagrangeNodal(domain)
+      if myRank == 1
+         src = MPI.Buffer(domain)
+         otherRank = 0
+         req = MPI.Isend(src, otherRank, msgType, comm)
+      	 MPI.Wait!(req)
+      end
 
-   # calculate element quantities (i.e. velocity gradient & q), and update
-   # material states */
-   # lagrangeElements(domain)
-
-   # calcTimeConstraintsForElems(domain)
    return nothing
 end

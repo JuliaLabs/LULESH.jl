@@ -27,29 +27,18 @@ function main(nx, structured, num_iters, mpi, enzyme)
     floattype = Float64
     devicetype = Vector
 
-    if mpi
         !MPI.Initialized() && MPI.Init()
         comm = MPI.COMM_WORLD
-    else
-        comm = nothing
-    end
 
-    if getMyRank(comm) == 0
-        @info "Constructing LuleshProblem" num_iters structured nx nr balance cost ranks=getNumRanks(comm)
-    end
 
-    prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
-
-    # Set up the mesh and decompose. Assumes regular cubes for now
-    # TODO: modify this constructor to account for new fields
-    # TODO: setup communication buffers
-
-    domain = Domain(prob)
-        shadowDomain = Domain(prob)
+      comm = MPI.COMM_WORLD
+      myRank = MPI.Comm_rank(comm)
+    domain = [1.0, 2.0, 3.0]
+        shadowDomain = [4.0, 5.0, 6.0]
         if enzyme
-            Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
+            Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain), myRank)
         else
-            lagrangeLeapFrog(domain)
+            lagrangeLeapFrog(domain, myRank)
         end
         MPI.Finalize()
 end
