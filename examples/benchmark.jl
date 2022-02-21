@@ -39,7 +39,11 @@ function main(nx, structured, num_iters, mpi, enzyme)
 
     domain = Domain(prob)
         shadowDomain = Domain(prob)
-        if enzyme
+     domain.commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+     domain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+     shadowDomain.commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+     shadowDomain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+	if enzyme
             Enzyme.autodiff(lagrangeLeapFrog, Duplicated(domain, shadowDomain))
         else
             lagrangeLeapFrog(domain)

@@ -38,8 +38,8 @@ end
 
 function commSend(domain::Domain, msgType, fields,
                   dx, dy, dz, myRank, comm, c, c2)
-      if c
-   	xferFields = length(fields)
+   	
+	xferFields = length(fields)
    	maxEdgeComm  = xferFields * domain.maxEdgeSize
         
 	 offset = maxEdgeComm
@@ -50,18 +50,15 @@ function commSend(domain::Domain, msgType, fields,
             end
             offset += dz
          end
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp + 1
+         src = MPI.Buffer(domain.commDataSend)
+         otherRank = myRank
          req = MPI.Isend(src, otherRank, msgType, comm)
-      end
-      if c2
-	 data = MPI.Buffer(view(domain.commDataRecv, 1:2))
-         fromProc = myRank + domain.m_tp - 1
+	 
+	data = MPI.Buffer(domain.commDataRecv)
+         fromProc = myRank
          MPI.Recv!(data, fromProc, msgType, comm)
-      end
-      if c
-         MPI.Wait!(req)
-      end
+         
+	MPI.Wait!(req)
 end
 
 function commSBN(domain::Domain, fields)
