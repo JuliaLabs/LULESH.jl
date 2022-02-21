@@ -25,9 +25,9 @@ function free(buf)
   return nothing
 end
 
-function Isend(ar, buf, count)
+function Isend(ar, count)
     req = MPI.Request()
-    ccall(:memcpy, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cchar, Cint), buf.data, buf.data, 0, buf.count*8)
+    ccall(:memcpy, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cchar, Cint), ar, ar, 0, count*8)
     finalizer(free, req)
     return req
 end
@@ -41,8 +41,7 @@ function fooSend(domain, fields, dx)
             offset += 2
          end
 	ar = domain.commDataSend
-         buf = MPI.Buffer(ar)
-         req = Isend(ar, buf, buf.count)
+         req = Isend(ar, 10) #buf.count)
     return nothing 
 end
 function foo(domain, domx, dx, dy, dz)
@@ -54,7 +53,6 @@ function foo(domain, domx, dx, dy, dz)
 end
 
 function main(enzyme)
-        comm = MPI.COMM_WORLD
      
 	domain = Data(Vector{Float64}(undef, 2+11+31))
         shadowDomain = Data(Vector{Float64}(undef, 2+11+31))
