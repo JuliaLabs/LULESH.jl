@@ -38,10 +38,9 @@ function fooSend(domain, fields, dx, comm)
    	maxEdgeComm  = 6 * 32
 
 	 offset = maxEdgeComm
-         srcOffset = 31 - 1
          for field in fields
             for i in 0:(dx-1)
-               domain.commDataSend[offset+i + 1] = field[srcOffset+i*31*31 + 1]
+               domain.commDataSend[offset+i + 1] = field[30+i*31*31 + 1]
             end
             offset += 31
          end
@@ -83,8 +82,8 @@ function main(enzyme)
    dx = 30 + 1
    dy = 30 + 1
    dz = 30 + 1
-	domx = Vector{Float64}(undef, 29791)
-	sdomx = Vector{Float64}(undef, 29791)
+	domx = Vector{Float64}(undef, 31*31*30+31)
+	sdomx = Vector{Float64}(undef, 31*31*30+31)
 
 	if enzyme
             Enzyme.autodiff(foo, Duplicated(domain, shadowDomain), Duplicated(domx, sdomx), dx, dy, dz)
