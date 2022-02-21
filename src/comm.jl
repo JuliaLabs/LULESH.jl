@@ -17,14 +17,8 @@ copyto_zero!(dest, doffs, src, soffs, nelems) = copyto!(dest, doffs+1, src, soff
 
 function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, planeOnly)
    comm = domain.comm
-   if comm === nothing
-       return
-   end
    comm = comm::MPI.Comm
 
-   # post receive buffers for all incoming messages
-   maxPlaneComm = xferFields * domain.maxPlaneSize
-   maxEdgeComm  = xferFields * domain.maxEdgeSize
    pmsg = 0 # plane comm msg
    emsg = 0 # edge comm msg
    cmsg = 0 # corner comm msg
@@ -38,28 +32,11 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
    myRank = MPI.Comm_rank(comm)
 
-   # post receives
-   function irecv!(fromProc, offset, recvCount)
-      idx = offset + 1
-      data = MPI.Buffer(view(domain.commDataRecv, idx:(idx+recvCount-1)))
-      return MPI.Irecv!(data, fromProc, msgType, domain.comm::MPI.Comm)
-   end
-
-   # receive data from neighboring domain faces
-   if planeMin && doRecv
-      # contiguous memory
-      fromProc = myRank - domain.m_tp^2
-      recvCount = dx * dy * xferFields
-      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
-      domain.recvRequest[pmsg+1] = req
-      pmsg += 1
-   end
-
    if planeMax
       # contiguous memory
       fromProc = myRank + domain.m_tp^2
-      recvCount = dx * dy * xferFields
-      req = irecv!(fromProc, pmsg*maxPlaneComm, recvCount)
+      data = MPI.Buffer(view(domain.commDataRecv, 1:2))
+      req = MPI.Irecv!(data, fromProc, msgType, comm)
       domain.recvRequest[pmsg+1] = req
       pmsg += 1
    end
@@ -69,15 +46,6 @@ function commSend(domain::Domain, msgType, fields,
                   dx, dy, dz, doSend, planeOnly)
 
    comm = domain.comm
-   if comm === nothing
-      return
-   end
-
-   xferFields = length(fields)
-
-   # post recieve buffers for all incoming messages
-   maxPlaneComm = xferFields * domain.maxPlaneSize
-   maxEdgeComm  = xferFields * domain.maxEdgeSize
    pmsg = 0 # plane comm msg
    emsg = 0 # edge comm msg
    cmsg = 0 # corner comm msg
@@ -88,52 +56,15 @@ function commSend(domain::Domain, msgType, fields,
    # assume communication to 6 neighbors by default
    rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
-   fill!(domain.sendRequest, MPI.Request())
    myRank = MPI.Comm_rank(comm)
 
-   # post sends
-   if planeMin | planeMax
-      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
-      sendCount = dx * dy
-
       if planeMin
-         # contiguous memory
-         srcOffset = 0
-         offset = pmsg * maxPlaneComm
-         for field in fields
-            copyto_zero!(domain.commDataSend, offset, field, srcOffset, sendCount)
-            offset += sendCount
-         end
-         idx = pmsg * maxPlaneComm + 1
-         src = MPI.Buffer(view(domain.commDataSend, idx:(idx+(xferFields * sendCount-1))))
-
+         src = MPI.Buffer(view(domain.commDataSend, 1:2))
          otherRank = myRank - domain.m_tp^2
          req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+1] = req
+      	 MPI.Wait!(req)
          pmsg += 1
       end
-
-      if planeMax && doSend
-         # contiguous memory
-         srcOffset = dx*dy*(dz - 1)
-         offset = pmsg * maxPlaneComm
-         for field in fields
-            copyto_zero!(domain.commDataSend, offset, field, srcOffset, sendCount)
-            offset += sendCount
-         end
-         idx = pmsg * maxPlaneComm + 1
-         src = MPI.Buffer(view(domain.commDataSend, idx:(idx+(xferFields * sendCount -1))))
-
-         otherRank = myRank + domain.m_tp^2
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+1] = req
-         pmsg += 1
-      end
-   end
-   for i in 1:(pmsg+emsg+cmsg)
-      MPI.Wait!(domain.sendRequest[i])
-   end
-   # MPI.Waitall!(domain.sendRequest)
 end
 
 function commSBN(domain::Domain, fields)
@@ -612,55 +543,14 @@ function commMonoQ(domain::Domain)
 end
 
 function commSyncPosVel(domain::Domain)
-   comm = domain.comm
-   if comm === nothing
-      return
-   end
-   doRecv = false
-   xferFields = 6 ; # x, y, z, xd, yd, zd
-   fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
-   maxPlaneComm = xferFields * domain.maxPlaneSize
-   maxEdgeComm  = xferFields * domain.maxEdgeSize
-   pmsg = 0 # plane comm msg
-   emsg = 0 # edge comm msg
-   cmsg = 0 # corner comm msg
-   dx = domain.sizeX + 1
-   dy = domain.sizeY + 1
-   dz = domain.sizeZ + 1
 
    # assume communication to 6 neighbors by default
    rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
-   myRank = MPI.Comm_rank(comm)
-
-   if planeMin | planeMax
-      # ASSUMING ONE DOMAIN PER RANK, CONSTANT BLOCK SIZE HERE
-      opCount = dx * dy
-
-      if planeMin && doRecv
-         # contiguous memory
-         MPI.Wait!(domain.recvRequest[pmsg+1])
-         offset = pmsg * maxPlaneComm
-         for field in fields
-            copyto_zero!(field, 0, domain.commDataRecv, offset, opCount)
-            offset += opCount
-         end
-         pmsg += 1
-      end
-
       if planeMax
          # contiguous memory
-         MPI.Wait!(domain.recvRequest[pmsg+1])
-
-         destOffset = dx*dy*(dz - 1)
-         offset = pmsg * maxPlaneComm
-         for field in fields
-            copyto_zero!(field, destOffset, domain.commDataRecv, offset, opCount)
-            offset += opCount
-         end
-         pmsg += 1
+         MPI.Wait!(domain.recvRequest[1])
       end
 
-   end
    return nothing
 end

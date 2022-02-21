@@ -1838,36 +1838,7 @@ function calcPositionForNodes(domain::Domain, dt)
 end
 
 function lagrangeNodal(domain::Domain)
-    delt = domain.deltatime
-
-    u_cut = domain.u_cut
-    # time of boundary condition evaluation is beginning of step for force and
-    # acceleration boundary conditions.
-    # calcForceForNodes(domain)
-
-    if SEDOV_SYNC_POS_VEL_EARLY
-        commRecv(domain, MSG_SYNC_POS_VEL, 6,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                 false, false)
-    end
-
-    # calcAccelerationForNodes(domain)
-
-    # applyAccelerationBoundaryConditionsForNodes(domain)
-
-    # calcVelocityForNodes(domain, delt, u_cut)
-    # calcPositionForNodes(domain, delt)
-
-    if SEDOV_SYNC_POS_VEL_EARLY
-        fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
-        commSend(domain, MSG_SYNC_POS_VEL, fields,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                 false, false)
-        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
-        commSyncPosVel(domain)
-        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
-    end
-
+   
     return nothing
 end
 
@@ -3064,17 +3035,44 @@ function calcTimeConstraintsForElems(domain::Domain)
 end
 
 
-function lagrangeLeapFrog(domain::Domain)
+function free(req::MPI.Request)
+    return nothing
+end
 
-   # calculate nodal forces, accelerations, velocities, positions, with
-   # applied boundary conditions and slide surface considerations */
-   # Time increment
-   lagrangeNodal(domain)
+struct Buffer{A}
+	data::A
+end
+function Isend(v, dt, dest::Integer, tag::Integer, comm::MPI.Comm)
+    req = MPI.Request()
+    ptr = Base.cconvert(MPI.MPIPtr, v) #Ptr{Float64}, v.parent) + Base._memory_offset(v.parent, map(first, v.indices)...)
+    # ptr = Base.unsafe_convert(Ptr{Float64}, v)
+    # Base.unsafe_store!(ptr, 3.14)
+    ccall((:MPI_Isend, MPI.libmpi), Cint,
+          (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.MPI_Request}),
+	  	ptr,
+		  1, dt, dest, tag, comm, req)
+    req.buffer = v
+    finalizer(free, req)
+    return req
+end
 
-   # calculate element quantities (i.e. velocity gradient & q), and update
-   # material states */
-   # lagrangeElements(domain)
+function lagrangeLeapFrog(domain::Vector{Float64}, myRank)
+    comm = MPI.COMM_WORLD
+    dt = MPI.Datatype(Float64)
 
-   # calcTimeConstraintsForElems(domain)
+
+       buf = view(domain, 1:2)
+       otherRank = myRank
+       req = Isend(buf, dt, otherRank, MSG_SYNC_POS_VEL, comm)
+    
+    st = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
+    ccall((:MPI_Recv, MPI.libmpi), Cint,
+                  (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.Status}),
+                  domain, 2, dt, otherRank, MSG_SYNC_POS_VEL, comm, st)
+	
+	st = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
+ccall((:MPI_Wait, MPI.libmpi), Cint,
+                  (Ptr{MPI.MPI_Request}, MPI.MPIPtr),
+                  req, st)
    return nothing
 end
