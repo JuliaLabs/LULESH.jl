@@ -42,14 +42,10 @@ function fooSend(domain::Domain, fields,
          
 	MPI.Wait!(req)
 end
-function foo(domain::Domain)
+function foo(domain::Domain, dx, dy, dz)
 
    # assume communication to 6 neighbors by default
    comm = MPI.COMM_WORLD
-
-   dx = domain.sizeX + 1
-   dy = domain.sizeY + 1
-   dz = domain.sizeZ + 1
         
       fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
       fooSend(domain, fields,
@@ -82,10 +78,14 @@ function main(nx, structured, num_iters, mpi, enzyme)
      domain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
      shadowDomain.commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
      shadowDomain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+
+   dx = domain.sizeX + 1
+   dy = domain.sizeY + 1
+   dz = domain.sizeZ + 1
 	if enzyme
-            Enzyme.autodiff(foo, Duplicated(domain, shadowDomain))
+            Enzyme.autodiff(foo, Duplicated(domain, shadowDomain), dx, dy, dz)
         else
-            foo(domain)
+            foo(domain, dx, dy, dz)
         end
         MPI.Finalize()
 end
