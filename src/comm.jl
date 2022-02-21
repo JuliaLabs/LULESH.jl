@@ -30,26 +30,19 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 
    # post receives
    function irecv!(fromProc, offset, recvCount)
-      data = MPI.Buffer(view(domain.commDataRecv, 1:2))
       return MPI.Irecv!(data, fromProc, msgType, domain.comm::MPI.Comm)
    end
 
 
-   pmsg = 0
+      data = MPI.Buffer(view(domain.commDataRecv, 1:2))
       if rowMax && colMax
          fromProc = myRank + domain.m_tp + 1
-         recvCount = 0
-         offset = 0
-         req = irecv!(fromProc, offset, recvCount)
-         MPI.Wait!(req)
+         MPI.Recv!(data, fromProc, msgType, comm)
       end
 
       if rowMax && colMin
          fromProc = myRank + domain.m_tp - 1
-         recvCount = 0
-         offset = 0
-         req = irecv!(fromProc, offset, recvCount)
-         MPI.Wait!(req)
+         MPI.Recv!(data, fromProc, msgType, comm)
       end
 end
 
