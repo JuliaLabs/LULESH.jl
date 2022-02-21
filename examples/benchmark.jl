@@ -41,7 +41,7 @@ function fooSend(domain, fields, dx, comm)
             for i in 0:(dx-1)
                domain.commDataSend[offset+i + 1] = field[30+i*31*31 + 1]
             end
-            offset += 31
+            offset += 2
          end
 	ar = domain.commDataSend
 	datatype = MPI.Datatype(Float64)
@@ -75,8 +75,8 @@ end
 function main(enzyme)
         comm = MPI.COMM_WORLD
      
-	domain = Data(Vector{Float64}(undef, 378))
-        shadowDomain = Data(Vector{Float64}(undef, 378))
+	domain = Data(Vector{Float64}(undef, 192+11+31))
+        shadowDomain = Data(Vector{Float64}(undef, 192+11+31))
 
    dx = 30 + 1
    dy = 30 + 1
