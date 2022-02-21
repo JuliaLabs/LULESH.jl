@@ -21,13 +21,16 @@ mutable struct Data
    commDataSend::Vector{Float64}
 end
 
+function free(buf)
+  return nothing
+end
+
 function Isend(buf, dest::Integer, tag::Integer, comm)
     req = MPI.Request()
-    @MPI.mpichk ccall((:MPI_Isend, MPI.libmpi), Cint,
+    ccall((:MPI_Isend, MPI.libmpi), Cint,
           (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.MPI_Request}),
                   buf.data, buf.count, buf.datatype, dest, tag, comm, req)
-    req.buffer = buf
-    finalizer(MPI.free, req)
+    finalizer(free, req)
     return req
 end
 
