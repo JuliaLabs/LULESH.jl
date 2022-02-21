@@ -51,45 +51,9 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          emsg += 1
       end
 
-      if rowMax && planeMax
-         fromProc = myRank + domain.m_tp^2 + domain.m_tp
-         recvCount = dx * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
-         req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
-      if colMax && planeMax
-         fromProc = myRank + domain.m_tp^2 + 1
-         recvCount = dy * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
-         req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
       if rowMax && colMin
          fromProc = myRank + domain.m_tp - 1
          recvCount = dz * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
-         req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
-      if rowMin && planeMax
-         fromProc = myRank + domain.m_tp^2 - domain.m_tp
-         recvCount = dx * xferFields
-         offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
-         req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
-      if colMin && planeMax
-         fromProc = myRank + domain.m_tp^2 - 1
-         recvCount = dy * xferFields
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          req = irecv!(fromProc, offset, recvCount)
          domain.recvRequest[pmsg+emsg+1] = req
@@ -130,22 +94,6 @@ function commSend(domain::Domain, msgType, fields,
          emsg += 1
       end
 
-      if rowMin && planeMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp^2 - domain.m_tp
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
-      if colMin && planeMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp^2 - 1
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
       if rowMin && colMax
          offset = pmsg * maxPlaneComm + emsg * maxEdgeComm
          srcOffset = dx - 1
@@ -158,22 +106,6 @@ function commSend(domain::Domain, msgType, fields,
          idx = pmsg * maxPlaneComm + emsg * maxEdgeComm + 1
          src = MPI.Buffer(view(domain.commDataSend, 1:2))
          otherRank = myRank - domain.m_tp + 1
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
-      if rowMax && planeMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp^2 + domain.m_tp
-         req = MPI.Isend(src, otherRank, msgType, comm)
-         domain.sendRequest[pmsg+emsg+1] = req
-         emsg += 1
-      end
-
-      if colMax && planeMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp^2 + 1
          req = MPI.Isend(src, otherRank, msgType, comm)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
