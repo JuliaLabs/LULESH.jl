@@ -34,6 +34,15 @@ function Isend(buf, count, datatype, comm)
     return req
 end
 
+
+function Recv!(recvbuf, source::Integer, tag::Integer, comm)
+    st = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
+    ccall((:MPI_Recv, MPI.libmpi), Cint,
+                  (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.Status}),
+                  recvbuf.data, recvbuf.count, recvbuf.datatype, source, tag, comm, st)
+    return recvbuf.data
+end
+
 function fooSend(domain, fields,
                   dx, dy, dz, comm)
    	maxEdgeComm  = 6 * 32
@@ -49,7 +58,7 @@ function fooSend(domain, fields,
          buf = MPI.Buffer(domain.commDataSend)
          req = Isend(buf, buf.count, buf.datatype, comm)
 	 
-         MPI.Recv!(buf, 0, 0, comm)
+         Recv!(buf, 0, 0, comm)
          
 	MPI.Wait!(req)
 end
