@@ -1775,7 +1775,6 @@ function calcForceForNodes(domain::Domain)
     commSend(domain, MSG_COMM_SBN, fields,
              domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
              true, false)
-    commSBN(domain, fields)
 end
 
 function calcAccelerationForNodes(domain::Domain)
@@ -1838,35 +1837,22 @@ function calcPositionForNodes(domain::Domain, dt)
 end
 
 function lagrangeNodal(domain::Domain)
-    delt = domain.deltatime
+	comm = MPI.COMM_WORLD
+	rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+        msgType = 0
+      myRank = MPI.Comm_rank(comm)
 
-    u_cut = domain.u_cut
-    # time of boundary condition evaluation is beginning of step for force and
-    # acceleration boundary conditions.
-    # calcForceForNodes(domain)
-
-    if SEDOV_SYNC_POS_VEL_EARLY
-        commRecv(domain, MSG_SYNC_POS_VEL, 6,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                 false, false)
-    end
-
-    # calcAccelerationForNodes(domain)
-
-    # applyAccelerationBoundaryConditionsForNodes(domain)
-
-    # calcVelocityForNodes(domain, delt, u_cut)
-    # calcPositionForNodes(domain, delt)
-
-    if SEDOV_SYNC_POS_VEL_EARLY
-        fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
-        commSend(domain, MSG_SYNC_POS_VEL, fields,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
-                 false, false)
-        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
-        commSyncPosVel(domain)
-        # printAllFields(domain, "$(@__FILE__):$(@__LINE__)")
-    end
+	commRecv(domain, msgType, 6, 1, 1, 1, false, false)
+      if planeMin
+         src = MPI.Buffer(view(domain.commDataSend, 1:2))
+         otherRank = myRank - domain.m_tp^2
+         req = MPI.Isend(src, otherRank, msgType, comm)
+      	 MPI.Wait!(req)
+      end
+      if planeMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[1])
+      end
 
     return nothing
 end
