@@ -21,6 +21,16 @@ mutable struct Data
    commDataSend::Vector{Float64}
 end
 
+function Isend(buf, dest::Integer, tag::Integer, comm)
+    req = MPI.Request()
+    @MPI.mpichk ccall((:MPI_Isend, MPI.libmpi), Cint,
+          (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.MPI_Request}),
+                  buf.data, buf.count, buf.datatype, dest, tag, comm, req)
+    req.buffer = buf
+    finalizer(MPI.free, req)
+    return req
+end
+
 function fooSend(domain, fields,
                   dx, dy, dz, comm)
    	maxEdgeComm  = 6 * 32
@@ -34,7 +44,7 @@ function fooSend(domain, fields,
             offset += dz
          end
          src = MPI.Buffer(domain.commDataSend)
-         req = MPI.Isend(src, 0, 0, comm)
+         req = Isend(src, 0, 0, comm)
 	 
          MPI.Recv!(src, 0, 0, comm)
          
