@@ -25,18 +25,13 @@ function free(buf)
   return nothing
 end
 
-function Isend(buf, count, datatype, comm)
+function Isend(ar, buf, count, datatype, comm)
     req = MPI.Request()
     ccall((:MPI_Isend, MPI.libmpi), Cint,
           (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.MPI_Request}),
                   buf.data, buf.count, datatype, 0, 0, comm, req)
     finalizer(free, req)
     return req
-end
-
-
-function Recv!(recvbuf, source::Integer, tag::Integer, comm)
-    return nothing
 end
 
 function fooSend(domain, fields,
@@ -54,14 +49,18 @@ function fooSend(domain, fields,
 	ar = domain.commDataSend
 	datatype = MPI.Datatype(Float64)
          buf = MPI.Buffer(ar)
-         req = Isend(buf, buf.count, datatype, comm)
+         req = Isend(ar, buf, buf.count, datatype, comm)
 	 
     st = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
     ccall((:MPI_Recv, MPI.libmpi), Cint,
                   (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.Status}),
                    ar, buf.count, datatype, 0, 0, comm, st)
-         
-	MPI.Wait!(req)
+    
+    stat_ref = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
+    ccall((:MPI_Wait, MPI.libmpi), Cint,
+                  (Ptr{MPI.MPI_Request}, Ptr{MPI.Status}),
+                  req, stat_ref)
+    return nothing 
 end
 function foo(domain, domx, dx, dy, dz)
 
