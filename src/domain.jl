@@ -1844,13 +1844,17 @@ function lagrangeNodal(domain::Domain)
    comm = MPI.COMM_WORLD
 
    myRank = MPI.Comm_rank(comm)
+   msgType = MSG_SYNC_POS_VEL
+   dx = domain.sizeX + 1
+   dy = domain.sizeY + 1
+   dz = domain.sizeZ + 1
 
 	commRecv(domain, MSG_SYNC_POS_VEL, 6,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                 dx, dy, dz,
                  false, false)
         fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
         commSend(domain, MSG_SYNC_POS_VEL, fields,
-                 domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
+                 dx, dy, dz,
                  false, false)
    
    pmsg = 0 # plane comm msg

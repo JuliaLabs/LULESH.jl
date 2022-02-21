@@ -59,11 +59,6 @@ function commSend(domain::Domain, msgType, fields,
 
    comm = domain.comm
 
-   xferFields = length(fields)
-
-   # post recieve buffers for all incoming messages
-   maxPlaneComm = xferFields * domain.maxPlaneSize
-   maxEdgeComm  = xferFields * domain.maxEdgeSize
    pmsg = 0 # plane comm msg
    emsg = 0 # edge comm msg
    cmsg = 0 # corner comm msg
@@ -85,7 +80,11 @@ function commSend(domain::Domain, msgType, fields,
       end
 
       if rowMin && colMax
-         offset = maxEdgeComm
+   	xferFields = length(fields)
+   	maxPlaneComm = xferFields * domain.maxPlaneSize
+   	maxEdgeComm  = xferFields * domain.maxEdgeSize
+        
+	 offset = maxEdgeComm
          srcOffset = dx - 1
          for field in fields
             for i in 0:(dz-1)
