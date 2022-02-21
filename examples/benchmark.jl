@@ -22,8 +22,7 @@ Enzyme.API.looseTypeAnalysis!(true)
 
 function fooSend(domain, fields,
                   dx, dy, dz, comm)
-	xferFields = length(fields)
-   	maxEdgeComm  = xferFields * 32
+   	maxEdgeComm  = 6 * 32
 
 	 offset = maxEdgeComm
          srcOffset = dx - 1
