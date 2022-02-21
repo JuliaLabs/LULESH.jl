@@ -34,17 +34,16 @@ function Isend(ar, buf, count, datatype, comm)
     return req
 end
 
-function fooSend(domain, fields,
-                  dx, dy, dz, comm)
+function fooSend(domain, fields, dx, comm)
    	maxEdgeComm  = 6 * 32
 
 	 offset = maxEdgeComm
-         srcOffset = dx - 1
+         srcOffset = 31 - 1
          for field in fields
-            for i in 0:(dz-1)
-               domain.commDataSend[offset+i + 1] = field[srcOffset+i*dx*dy + 1]
+            for i in 0:(dx-1)
+               domain.commDataSend[offset+i + 1] = field[srcOffset+i*31*31 + 1]
             end
-            offset += dz
+            offset += 31
          end
 	ar = domain.commDataSend
 	datatype = MPI.Datatype(Float64)
@@ -69,7 +68,7 @@ function foo(domain, domx, dx, dy, dz)
         
       fields = (domx, domx, domx, domx, domx, domx)
       fooSend(domain, fields,
-                 dx, dy, dz,
+		dx,
 		 comm)
 
     return nothing
