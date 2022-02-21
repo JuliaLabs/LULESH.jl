@@ -1838,14 +1838,92 @@ function calcPositionForNodes(domain::Domain, dt)
 end
 
 function lagrangeNodal(domain::Domain)
-        commRecv(domain, MSG_SYNC_POS_VEL, 6,
+
+   # assume communication to 6 neighbors by default
+   rowMin, rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
+   comm = MPI.COMM_WORLD
+
+   myRank = MPI.Comm_rank(comm)
+
+	commRecv(domain, MSG_SYNC_POS_VEL, 6,
                  domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
                  false, false)
         fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
         commSend(domain, MSG_SYNC_POS_VEL, fields,
                  domain.sizeX + 1, domain.sizeY + 1, domain.sizeZ + 1,
                  false, false)
-        commSyncPosVel(domain)
+   
+   pmsg = 0 # plane comm msg
+   emsg = 0 # edge comm msg
+   cmsg = 0 # corner comm msg
+
+
+      if planeMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         pmsg += 1
+      end
+
+      if rowMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         pmsg += 1
+      end
+      if colMax
+         # contiguous memory
+         MPI.Wait!(domain.recvRequest[pmsg+1])
+         pmsg += 1
+      end
+
+   if rowMax && colMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      emsg += 1
+   end
+
+   if rowMax && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      emsg += 1
+   end
+
+   if colMax && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      emsg += 1
+   end
+
+   if rowMax && colMin
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      emsg += 1
+   end
+
+   if rowMin && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      emsg += 1
+   end
+
+   if colMin && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
+      emsg += 1
+   end
+   
+   if rowMin && colMin && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      cmsg += 1
+   end
+
+   if rowMin && colMax && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      cmsg += 1
+   end
+
+   if rowMax && colMin && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      cmsg += 1
+   end
+
+   if rowMax && colMax && planeMax
+      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
+      cmsg += 1
+   end
 
     return nothing
 end
