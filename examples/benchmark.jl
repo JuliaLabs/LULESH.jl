@@ -36,11 +36,7 @@ end
 
 
 function Recv!(recvbuf, source::Integer, tag::Integer, comm)
-    st = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
-    ccall((:MPI_Recv, MPI.libmpi), Cint,
-                  (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.Status}),
-                  recvbuf.data, recvbuf.count, recvbuf.datatype, source, tag, comm, st)
-    return recvbuf.data
+    return nothing
 end
 
 function fooSend(domain, fields,
@@ -55,10 +51,15 @@ function fooSend(domain, fields,
             end
             offset += dz
          end
-         buf = MPI.Buffer(domain.commDataSend)
-         req = Isend(buf, buf.count, buf.datatype, comm)
+	ar = domain.commDataSend
+	datatype = MPI.Datatype(Float64)
+         buf = MPI.Buffer(ar)
+         req = Isend(buf, buf.count, datatype, comm)
 	 
-         Recv!(buf, 0, 0, comm)
+    st = Ref{MPI.Status}(MPI.Status(0, 0, 0, 0, 0, 0))
+    ccall((:MPI_Recv, MPI.libmpi), Cint,
+                  (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.Status}),
+                   ar, buf.count, datatype, 0, 0, comm, st)
          
 	MPI.Wait!(req)
 end
