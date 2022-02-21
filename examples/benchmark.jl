@@ -35,9 +35,8 @@ function Isend(ar, buf, count, datatype, comm)
 end
 
 function fooSend(domain, fields, dx, comm)
-   	maxEdgeComm  = 6 * 32
 
-	 offset = maxEdgeComm
+	 offset = 192
          for field in fields
             for i in 0:(dx-1)
                domain.commDataSend[offset+i + 1] = field[30+i*31*31 + 1]
@@ -76,8 +75,8 @@ end
 function main(enzyme)
         comm = MPI.COMM_WORLD
      
-	domain = Data(Vector{Float64}(undef, 30*30*30))
-        shadowDomain = Data(Vector{Float64}(undef, 30*30*30))
+	domain = Data(Vector{Float64}(undef, 378))
+        shadowDomain = Data(Vector{Float64}(undef, 378))
 
    dx = 30 + 1
    dy = 30 + 1
