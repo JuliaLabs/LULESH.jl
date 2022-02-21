@@ -37,7 +37,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 end
 
 function commSend(domain::Domain, msgType, fields,
-                  dx, dy, dz, myRank, comm, c)
+                  dx, dy, dz, myRank, comm, c, c2)
       if c
    	xferFields = length(fields)
    	maxEdgeComm  = xferFields * domain.maxEdgeSize
@@ -53,7 +53,14 @@ function commSend(domain::Domain, msgType, fields,
          src = MPI.Buffer(view(domain.commDataSend, 1:2))
          otherRank = myRank - domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, comm)
-      	 MPI.Wait!(req)
+      end
+      if c2
+	 data = MPI.Buffer(view(domain.commDataRecv, 1:2))
+         fromProc = myRank + domain.m_tp - 1
+         MPI.Recv!(data, fromProc, msgType, comm)
+      end
+      if c
+         MPI.Wait!(req)
       end
 end
 

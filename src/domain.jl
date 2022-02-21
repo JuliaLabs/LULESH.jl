@@ -1848,18 +1848,11 @@ function lagrangeNodal(domain::Domain)
    dx = domain.sizeX + 1
    dy = domain.sizeY + 1
    dz = domain.sizeZ + 1
-      
-	data = MPI.Buffer(view(domain.commDataRecv, 1:2))
-
-      if rowMax & colMin
-         fromProc = myRank + domain.m_tp - 1
-         MPI.Recv!(data, fromProc, msgType, comm)
-      end
         
       fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
       commSend(domain, MSG_SYNC_POS_VEL, fields,
                  dx, dy, dz,
-		 myRank, comm, rowMin & colMax)
+		 myRank, comm, rowMin & colMax, rowMax & colMin)
 
     return nothing
 end
