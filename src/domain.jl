@@ -3033,12 +3033,11 @@ function calcTimeConstraintsForElems(domain::Domain)
   calcHydroConstraintForElems(domain::Domain)
 end
 
-function Isend(buf, dest::Integer, tag::Integer, comm::MPI.Comm)
+function Isend(buf, otherRank::Integer, msgType::Integer, comm::MPI.Comm)
     req = MPI.Request()
     ccall((:MPI_Isend, MPI.libmpi), Cint,
           (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.MPI_Request}),
-                  buf.data, buf.count, buf.datatype, dest, tag, comm, req)
-    req.buffer = buf
+                  buf.data, buf.count, buf.datatype, otherRank, msgType, comm, req)
     finalizer(MPI.free, req)
     return req
 end
@@ -3047,13 +3046,13 @@ function lagrangeLeapFrog(domain, myRank)
         msgType = 0
 	comm = MPI.COMM_WORLD
    
-     data = MPI.Buffer(domain)
+     buf = MPI.Buffer(domain)
      if myRank == 0
       fromProc = 1
-        MPI.Recv!(data, fromProc, msgType, comm)
+        MPI.Recv!(buf, fromProc, msgType, comm)
      else
          otherRank = 0
-         req = Isend(data, otherRank, msgType, comm)
+         req = Isend(buf, otherRank, msgType, comm)
       	 MPI.Wait!(req)
       end
 
