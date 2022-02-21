@@ -1904,26 +1904,6 @@ function lagrangeNodal(domain::Domain)
       MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
       emsg += 1
    end
-   
-   if rowMin && colMin && planeMax
-      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
-      cmsg += 1
-   end
-
-   if rowMin && colMax && planeMax
-      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
-      cmsg += 1
-   end
-
-   if rowMax && colMin && planeMax
-      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
-      cmsg += 1
-   end
-
-   if rowMax && colMax && planeMax
-      MPI.Wait!(domain.recvRequest[pmsg+emsg+cmsg+1])
-      cmsg += 1
-   end
 
     return nothing
 end
