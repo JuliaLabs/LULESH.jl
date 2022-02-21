@@ -41,8 +41,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          recvCount = 0
          offset = 0
          req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+1] = req
-         pmsg += 1
+         MPI.Wait!(req)
       end
 
       if rowMax && colMin
@@ -50,7 +49,7 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
          recvCount = 0
          offset = 0
          req = irecv!(fromProc, offset, recvCount)
-         domain.recvRequest[pmsg+1] = req
+         MPI.Wait!(req)
       end
 end
 

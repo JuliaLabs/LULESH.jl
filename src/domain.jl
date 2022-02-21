@@ -1856,21 +1856,6 @@ function lagrangeNodal(domain::Domain)
         commSend(domain, MSG_SYNC_POS_VEL, fields,
                  dx, dy, dz,
                  false, false)
-   
-   pmsg = 0 # plane comm msg
-   emsg = 0 # edge comm msg
-   cmsg = 0 # corner comm msg
-
-
-   if rowMax && colMax
-      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
-      emsg += 1
-   end
-
-   if rowMax && colMin
-      MPI.Wait!(domain.recvRequest[pmsg+emsg+1])
-      emsg += 1
-   end
 
     return nothing
 end
