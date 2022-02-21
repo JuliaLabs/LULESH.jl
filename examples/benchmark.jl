@@ -20,12 +20,11 @@ isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
 
-function fooSend(domain::Domain, fields,
+function fooSend(domain, fields,
                   dx, dy, dz, comm)
-   	
 	xferFields = length(fields)
-   	maxEdgeComm  = xferFields * domain.maxEdgeSize
-        
+   	maxEdgeComm  = xferFields * 32
+
 	 offset = maxEdgeComm
          srcOffset = dx - 1
          for field in fields
@@ -37,12 +36,11 @@ function fooSend(domain::Domain, fields,
          src = MPI.Buffer(domain.commDataSend)
          req = MPI.Isend(src, 0, 0, comm)
 	 
-	data = MPI.Buffer(domain.commDataRecv)
-         MPI.Recv!(data, 0, 0, comm)
+         MPI.Recv!(src, 0, 0, comm)
          
 	MPI.Wait!(req)
 end
-function foo(domain::Domain, domx, dx, dy, dz)
+function foo(domain, domx, dx, dy, dz)
 
    # assume communication to 6 neighbors by default
    comm = MPI.COMM_WORLD
@@ -74,16 +72,15 @@ function main(nx, structured, num_iters, mpi, enzyme)
 
     domain = Domain(prob)
         shadowDomain = Domain(prob)
-     domain.commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
-     domain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
-     shadowDomain.commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
-     shadowDomain.commDataRecv = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+     
+	commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+        scommDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
 
    dx = domain.sizeX + 1
    dy = domain.sizeY + 1
    dz = domain.sizeZ + 1
-	domx = domain.x
-	sdomx = shadowDomain.x
+	domx = Vector{Float64}(undef, 29791)
+	sdomx = Vector{Float64}(undef, 29791)
 
 	if enzyme
             Enzyme.autodiff(foo, Duplicated(domain, shadowDomain), Duplicated(domx, sdomx), dx, dy, dz)
