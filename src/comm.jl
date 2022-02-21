@@ -37,33 +37,9 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
 end
 
 function commSend(domain::Domain, msgType, fields,
-                  dx, dy, dz, doSend, planeOnly)
-
-   comm = domain.comm
-
-   pmsg = 0 # plane comm msg
-   emsg = 0 # edge comm msg
-   cmsg = 0 # corner comm msg
-
-
-   # MPI_Status status[26] ;
-
-   # assume communication to 6 neighbors by default
-   rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
-
-   myRank = MPI.Comm_rank(comm)
-      
-      if rowMin && colMin
-         src = MPI.Buffer(view(domain.commDataSend, 1:2))
-         otherRank = myRank - domain.m_tp - 1
-
-         req = MPI.Isend(src, otherRank, msgType, comm)
-      	 MPI.Wait!(req)
-      end
-
-      if rowMin && colMax
+                  dx, dy, dz, myRank, comm, c)
+      if c
    	xferFields = length(fields)
-   	maxPlaneComm = xferFields * domain.maxPlaneSize
    	maxEdgeComm  = xferFields * domain.maxEdgeSize
         
 	 offset = maxEdgeComm
