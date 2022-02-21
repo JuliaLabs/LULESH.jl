@@ -20,6 +20,10 @@ isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
 
+struct Data
+   commDataSend::Vector{Float64}
+end
+
 function fooSend(domain, fields,
                   dx, dy, dz, comm)
    	maxEdgeComm  = 6 * 32
@@ -72,12 +76,12 @@ function main(nx, structured, num_iters, mpi, enzyme)
     domain = Domain(prob)
         shadowDomain = Domain(prob)
      
-	commDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
-        scommDataSend = Vector{Float64}(undef, domain.sizeX * domain.sizeY * domain.sizeZ)
+	commDataSend = Vector{Float64}(undef, 30*30*30)
+        scommDataSend = Vector{Float64}(undef, 30*30*30)
 
-   dx = domain.sizeX + 1
-   dy = domain.sizeY + 1
-   dz = domain.sizeZ + 1
+   dx = 30 + 1
+   dy = 30 + 1
+   dz = 30 + 1
 	domx = Vector{Float64}(undef, 29791)
 	sdomx = Vector{Float64}(undef, 29791)
 
