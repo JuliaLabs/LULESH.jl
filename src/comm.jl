@@ -84,12 +84,13 @@ function commSend(domain::Domain, msgType, fields,
    rowMin,rowMax, colMin, colMax, planeMin, planeMax = get_neighbors(domain)
 
    myRank = MPI.Comm_rank(comm)
-   if !planeOnly
+      
       if rowMin && colMin
          src = MPI.Buffer(view(domain.commDataSend, 1:2))
          otherRank = myRank - domain.m_tp - 1
 
          req = MPI.Isend(src, otherRank, msgType, comm)
+      	 MPI.Wait!(req)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
       end
@@ -107,15 +108,10 @@ function commSend(domain::Domain, msgType, fields,
          src = MPI.Buffer(view(domain.commDataSend, 1:2))
          otherRank = myRank - domain.m_tp + 1
          req = MPI.Isend(src, otherRank, msgType, comm)
+      	 MPI.Wait!(req)
          domain.sendRequest[pmsg+emsg+1] = req
          emsg += 1
       end
-   end
-
-   for i in 1:(pmsg+emsg+cmsg)
-      MPI.Wait!(domain.sendRequest[i])
-   end
-   # MPI.Waitall!(domain.sendRequest)
 end
 
 function commSBN(domain::Domain, fields)
