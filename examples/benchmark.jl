@@ -4,7 +4,6 @@ LLVM.clopts("-dse-memoryssa-walklimit=10000")
 LLVM.clopts("-attributor-max-iterations=128")
 LLVM.clopts("-capture-tracking-max-uses-to-explore=256")
 
-using LULESH
 using MPI
 using Enzyme
 
@@ -13,9 +12,7 @@ Enzyme.API.printall!(true)
 Enzyme.API.instname!(true)
 
 Enzyme.API.inlineall!(true)
-# Size of Domain is around 1024
 Enzyme.API.maxtypeoffset!(1024)
-# Enzyme.API.maxtypeoffset!(32)
 isdefined(Enzyme.API, :strictAliasing!) && Enzyme.API.strictAliasing!(true)
 isdefined(Enzyme.API, :typeWarning!) &&  Enzyme.API.typeWarning!(false)
 Enzyme.API.looseTypeAnalysis!(true)
@@ -56,28 +53,11 @@ function foo(domain, domx, dx, dy, dz)
     return nothing
 end
 
-function main(nx, structured, num_iters, mpi, enzyme)
-    # TODO: change default nr to 11
-    nr = 1
-    balance = 1
-    cost = 1
-    floattype = Float64
-    devicetype = Vector
-
-        !MPI.Initialized() && MPI.Init()
+function main(enzyme)
         comm = MPI.COMM_WORLD
-
-    prob = LuleshProblem(num_iters, structured, nx, nr, balance, cost, devicetype, floattype, comm)
-
-    # Set up the mesh and decompose. Assumes regular cubes for now
-    # TODO: modify this constructor to account for new fields
-    # TODO: setup communication buffers
-
-    domain = Domain(prob)
-        shadowDomain = Domain(prob)
      
 	domain = Data(Vector{Float64}(undef, 30*30*30))
-        shadowDomain = Data(Vector{Float64}(undef, 30*30*31))
+        shadowDomain = Data(Vector{Float64}(undef, 30*30*30))
 
    dx = 30 + 1
    dy = 30 + 1
@@ -90,17 +70,13 @@ function main(nx, structured, num_iters, mpi, enzyme)
         else
             foo(domain, domx, dx, dy, dz)
         end
-        MPI.Finalize()
 end
 
 if !isinteractive()
-    args = LULESH.parse_cmd()
-
-    # assume cube subdomain geometry for now (nx)
-    nx = args["N"]
-    structured = args["s"]
-    num_iters = args["num_iters"]
-    mpi = args["mpi"]
-    enzyme = args["enzyme"]
-    main(nx, structured, num_iters, mpi, enzyme)
+    !MPI.Initialized() && MPI.Init()
+    main(false)
+    @show "ran primal"
+    flush(stdout)
+    main(true)
+    MPI.Finalize()
 end
