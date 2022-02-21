@@ -34,16 +34,6 @@ function commRecv(domain::Domain, msgType, xferFields, dx, dy, dz, doRecv, plane
    end
 
 
-      data = MPI.Buffer(view(domain.commDataRecv, 1:2))
-      if rowMax && colMax
-         fromProc = myRank + domain.m_tp + 1
-         MPI.Recv!(data, fromProc, msgType, comm)
-      end
-
-      if rowMax && colMin
-         fromProc = myRank + domain.m_tp - 1
-         MPI.Recv!(data, fromProc, msgType, comm)
-      end
 end
 
 function commSend(domain::Domain, msgType, fields,
