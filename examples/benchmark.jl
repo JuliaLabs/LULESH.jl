@@ -4,7 +4,6 @@ LLVM.clopts("-dse-memoryssa-walklimit=10000")
 LLVM.clopts("-attributor-max-iterations=128")
 LLVM.clopts("-capture-tracking-max-uses-to-explore=256")
 
-using MPI
 using Enzyme
 
 Enzyme.API.printperf!(true)
@@ -25,13 +24,17 @@ function free(buf)
   return nothing
 end
 
-function Isend(ar, count)
-    req = MPI.Request()
+mutable struct Something
+   x::Int64
+end
+function Isend()
+    req = Something(2)
     finalizer(free, req)
     return req
 end
 
 function fooSend(domain, fields, dx)
+	ar = domain.commDataSend
 	 offset = 2
          for field in fields
             for i in 0:(dx-1)
@@ -39,9 +42,8 @@ function fooSend(domain, fields, dx)
             end
             offset += 2
          end
-	ar = domain.commDataSend
        ccall(:memcpy, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cchar, Cint), ar, ar, 0, 8)
-         req = Isend(ar, 10) #buf.count)
+         req = Isend() #buf.count)
     return nothing 
 end
 function foo(domain, domx, dx, dy, dz)
@@ -71,10 +73,8 @@ function main(enzyme)
 end
 
 if !isinteractive()
-    !MPI.Initialized() && MPI.Init()
     main(false)
     @show "ran primal"
     flush(stdout)
     main(true)
-    MPI.Finalize()
 end
