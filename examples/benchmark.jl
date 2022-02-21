@@ -34,7 +34,6 @@ function Isend()
 end
 
 function fooSend(domain, fields, dx)
-	ar = domain.commDataSend
 	 offset = 2
          for field in fields
             for i in 0:(dx-1)
@@ -42,8 +41,7 @@ function fooSend(domain, fields, dx)
             end
             offset += 2
          end
-       ccall(:memcpy, Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}, Cchar, Cint), ar, ar, 0, 8)
-         req = Isend() #buf.count)
+         req = Isend()
     return nothing 
 end
 function foo(domain, domx, dx, dy, dz)
