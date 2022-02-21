@@ -47,7 +47,7 @@ function foo(domain::Domain, dx, dy, dz)
    # assume communication to 6 neighbors by default
    comm = MPI.COMM_WORLD
         
-      fields = (domain.x, domain.y, domain.z, domain.xd, domain.yd, domain.zd)
+      fields = (domain.x, domain.x, domain.x, domain.x, domain.x, domain.x)
       fooSend(domain, fields,
                  dx, dy, dz,
 		 comm)
