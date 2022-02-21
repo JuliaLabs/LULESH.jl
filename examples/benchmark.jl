@@ -25,11 +25,11 @@ function free(buf)
   return nothing
 end
 
-function Isend(buf, dest::Integer, tag::Integer, comm)
+function Isend(buf, count, datatype, comm)
     req = MPI.Request()
     ccall((:MPI_Isend, MPI.libmpi), Cint,
           (MPI.MPIPtr, Cint, MPI.MPI_Datatype, Cint, Cint, MPI.MPI_Comm, Ptr{MPI.MPI_Request}),
-                  buf.data, buf.count, buf.datatype, dest, tag, comm, req)
+                  buf.data, buf.count, datatype, 0, 0, comm, req)
     finalizer(free, req)
     return req
 end
@@ -46,10 +46,10 @@ function fooSend(domain, fields,
             end
             offset += dz
          end
-         src = MPI.Buffer(domain.commDataSend)
-         req = Isend(src, 0, 0, comm)
+         buf = MPI.Buffer(domain.commDataSend)
+         req = Isend(buf, buf.count, buf.datatype, comm)
 	 
-         MPI.Recv!(src, 0, 0, comm)
+         MPI.Recv!(buf, 0, 0, comm)
          
 	MPI.Wait!(req)
 end
