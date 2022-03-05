@@ -1,6 +1,12 @@
 using LULESH
 using MPI
 using Enzyme
+using LLVM
+
+LLVM.clopts("-memdep-block-scan-limit=70000")
+LLVM.clopts("-dse-memoryssa-walklimit=10000")
+LLVM.clopts("-attributor-max-iterations=128")
+LLVM.clopts("-capture-tracking-max-uses-to-explore=256")
 
 # Enzyme.API.printperf!(true)
 # Enzyme.API.printall!(true)
