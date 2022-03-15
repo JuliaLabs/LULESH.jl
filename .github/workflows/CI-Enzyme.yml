@@ -37,9 +37,6 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@v1
-      - name: Install Enzyme@main
-        run: |
-          ./setup.jl
       - uses: julia-actions/julia-runtest@v1
         env:
           ENZYME_CI: true

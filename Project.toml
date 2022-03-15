@@ -1,13 +1,12 @@
 name = "LULESH"
 uuid = "b3135a98-19a2-4582-ae8b-d684fedc465a"
-authors = ["Ludger Paehler <ludger.paehler@tum.de>", "Michel Schanen <mschanen@anl.gov>"]
+authors = ["Ludger Paehler <ludger.paehler@tum.de>", "Michel Schanen <mschanen@anl.gov>", "Valentin Churavy <vchuravy@mit.edu>", "William S. Moses <gh@wsmoses.com>"]
 version = "0.1.0"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
-Enzyme_jll = "7cc45869-7501-5eee-bdea-0790c847d4ef"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
@@ -15,3 +14,6 @@ Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[compat]
+Enzyme = "0.9"
