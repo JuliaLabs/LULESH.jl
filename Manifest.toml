@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.1"
+julia_version = "1.7.2"
 manifest_format = "2.0"
 
 [[deps.Adapt]]
@@ -53,9 +53,7 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[deps.Enzyme]]
 deps = ["Adapt", "CEnum", "Enzyme_jll", "GPUCompiler", "LLVM", "Libdl", "LinearAlgebra", "ObjectFile", "Test"]
-git-tree-sha1 = "55c5f67fd6699fbaba7639aa25b0c3b29e9faf24"
-repo-rev = "main"
-repo-url = "https://github.com/wsmoses/Enzyme.jl.git"
+git-tree-sha1 = "3c78ef02304a5a32214e95e92f1235d374f89e3c"
 uuid = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 version = "0.9.0"
 
