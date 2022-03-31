@@ -56,7 +56,7 @@ include("comm.jl")
 include("utils.jl")
 
 export printUsage, IndexT, Domain, LuleshProblem, getMyRank, getNumRanks, getWtime,
-       lagrangeLeapFrog, comm_max, timeIncrement!, nodalMass, commRecv, MSG_COMM_SBN, verifyAndWriteFinalOutput
+       lagrangeLeapFrog, doubleFrog, comm_max, timeIncrement!, nodalMass, commRecv, MSG_COMM_SBN, verifyAndWriteFinalOutput
 export commSend, commRecv, commSBN
 
 function initMeshDecomp(comm)
