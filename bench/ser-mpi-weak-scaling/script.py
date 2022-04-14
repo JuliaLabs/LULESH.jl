@@ -6,7 +6,7 @@ def printfun(rank, blocklist,itercount):
     for mode in ["","--enzyme"]:
       os. chdir("/home/ubuntu/enzyme-sc22/LULESH.jl/")
       os.system("./mpiexecjl  -bind-to socket --project -np {}  /home/ubuntu/julia-1.7.2/bin/julia --project examples/benchmark.jl -s {}  --mpi {} > ser-mpi{}_{}_{}.txt".format(rank,s,mode,mode,rank,s))
-      os.system(" mv *.txt /home/ubuntu/results_sc2022/lulesh.jl/ser-mpi-weak-scaling/")
+      os.system("mv *.txt /home/ubuntu/enzyme-sc22/LULESH.jl/bench/ser-mpi-weak-scaling/")
 
 
 itercount=100
