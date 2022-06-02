@@ -3063,6 +3063,11 @@ function calcTimeConstraintsForElems(domain::Domain)
   calcHydroConstraintForElems(domain::Domain)
 end
 
+function doubleFrog(domain::Domain)
+  lagrangeLeapFrog(domain)
+  lagrangeLeapFrog(domain)
+  return nothing
+end
 
 function lagrangeLeapFrog(domain::Domain)
 

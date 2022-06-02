@@ -21,6 +21,9 @@ function parse_cmd()
         "--enzyme"
             help = "Run Enzyme"
             action = :store_true
+        "--verification"
+            help = "Run gradient or finite difference verification"
+            action = :store_true
     end
 
     return parse_args(s)
