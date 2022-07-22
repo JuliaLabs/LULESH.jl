@@ -12,7 +12,7 @@ def printfun(rank, blocklist,itercount):
   os.chdir(scriptdir)
 
 
-itercount=100
+itercount=10
 printfun(1, [96],itercount)
 printfun(8, [96],itercount)
 printfun(27, [96],itercount)
